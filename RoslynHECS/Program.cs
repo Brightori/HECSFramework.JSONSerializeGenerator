@@ -23,29 +23,13 @@ namespace RoslynHECS
     class Program
     {
         public static List<string> components = new List<string>(2048);
-        public static List<ClassDeclarationSyntax> componentsDeclarations = new List<ClassDeclarationSyntax>(2048);
-        public static List<ClassDeclarationSyntax> allComponentsDeclarations = new List<ClassDeclarationSyntax>(2048);
-        public static List<ClassDeclarationSyntax> partialDeclarations = new List<ClassDeclarationSyntax>(2048);
-        public static List<StructDeclarationSyntax> globalCommands = new List<StructDeclarationSyntax>(2048);
-        public static List<StructDeclarationSyntax> fastComponents = new List<StructDeclarationSyntax>(2048);
-        public static List<StructDeclarationSyntax> localCommands = new List<StructDeclarationSyntax>(2048);
-        public static List<StructDeclarationSyntax> networkCommands = new List<StructDeclarationSyntax>(2048);
 
         //resolvers collection
         public static Dictionary<string, ResolverData> customHecsResolvers = new Dictionary<string, ResolverData>(256);
         public static Dictionary<string, LinkedNode> hecsResolverCollection = new Dictionary<string, LinkedNode>(512);
 
-        public static Dictionary<string, StructDeclarationSyntax> structByName = new Dictionary<string, StructDeclarationSyntax>(4000);
-        public static Dictionary<string, ClassDeclarationSyntax> classesByName = new Dictionary<string, ClassDeclarationSyntax>(4000);
-        public static Dictionary<string, InterfaceDeclarationSyntax> allInterfacesByName = new Dictionary<string, InterfaceDeclarationSyntax>(1024);
-        public static Dictionary<string, LinkedNode> systemOverData = new Dictionary<string, LinkedNode>(512);
-        public static Dictionary<string, LinkedNode> componentOverData = new Dictionary<string, LinkedNode>(512);
-        public static Dictionary<string, LinkedInterfaceNode> interfacesOverData = new Dictionary<string, LinkedInterfaceNode>(512);
-        public static Dictionary<string, LinkedGenericInterfaceNode> genericInterfacesOverData = new Dictionary<string, LinkedGenericInterfaceNode>(512);
-
         public static List<ClassDeclarationSyntax> classes;
         public static List<StructDeclarationSyntax> structs;
-        public static List<InterfaceDeclarationSyntax> interfaces;
 
         public static string ScriptsPath = @"D:\Develop\Shootervertical\Assets\";
         public static string HECSGenerated = @"D:\Develop\Shootervertical\Assets\Scripts\HECSGenerated\";
@@ -71,10 +55,6 @@ namespace RoslynHECS
         private const string BaseComponent = "BaseComponent";
         private const string HECSManualResolver = "HECSManualResolver";
         private const string HECSResolver = "HECSResolver";
-
-        private static bool resolversNeeded = true;
-        private static bool bluePrintsNeeded = true;
-        private static bool commandMapneeded = false;
 
         public static bool CommandMapNeeded => commandMapneeded;
 
