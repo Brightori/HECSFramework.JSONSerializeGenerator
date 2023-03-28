@@ -56,8 +56,6 @@ namespace RoslynHECS
         private const string HECSManualResolver = "HECSManualResolver";
         private const string HECSResolver = "HECSResolver";
 
-        public static bool CommandMapNeeded => commandMapneeded;
-
         private static HashSet<LinkedInterfaceNode> interfaceCache = new HashSet<LinkedInterfaceNode>(32);
         private static List<FileInfo> files;
 
@@ -110,50 +108,12 @@ namespace RoslynHECS
 
             classes = classVisitor.Classes;
             structs = structVisitor.Structs;
-            interfaces = interfaceVisitor.Interfaces;
-
-            foreach (var i in interfaces)
-            {
-                var name = i.Identifier.ValueText;
-
-                if (interfacesOverData.ContainsKey(name)) continue;
-
-                var node = new LinkedInterfaceNode
-                {
-                    Name = name,
-                    InterfaceDeclaration = i,
-                    Parents = new HashSet<LinkedInterfaceNode>(8),
-                    Parts = new HashSet<InterfaceDeclarationSyntax>(8),
-                    isPartial = i.Modifiers.Any(x => x.ToString() == "partial"),
-                };
-                interfacesOverData.Add(name, node);
-
-                if (node.isPartial)
-                {
-                    var parts = interfaces.Where(x => x.Identifier.ValueText == name).ToHashSet();
-                    node.Parts = parts;
-                }
-
-                node.isHaveReact = name.Contains("React");
-            }
-
-            ProcessInterfaces();
-            GatherSystems();
-            GatherComponents();
 
             ProcessClasses();
 
             foreach (var s in structs)
                 ProcessStructs(s);
 
-            foreach (var c in componentOverData.Values)
-            {
-                var newInterfaces = new HashSet<LinkedInterfaceNode>();
-                c.GetInterfaces(newInterfaces);
-                c.Interfaces = newInterfaces;
-            }
-
-            Console.WriteLine("нашли компоненты " + componentOverData.Count);
             SaveFiles();
             Console.WriteLine("успешно сохранено");
             //Thread.Sleep(1500);
@@ -176,10 +136,6 @@ namespace RoslynHECS
                 HECSGenerated = Path.GetFullPath(HECSGenerated);
                 if (!HECSGenerated.EndsWith(Path.DirectorySeparatorChar.ToString())) HECSGenerated += Path.DirectorySeparatorChar;
             }
-
-            bluePrintsNeeded = !args.Any(a => a.Contains("no_blueprints"));
-            resolversNeeded = !args.Any(a => a.Contains("no_resolvers"));
-            commandMapneeded = !args.Any(a => a.Contains("no_commands"));
         }
 
         private static void SaveFiles()
@@ -193,64 +149,6 @@ namespace RoslynHECS
             //SaveToFile(Documentation, processGeneration.GetDocumentationRoslyn(), HECSGenerated); не получается нормально автоматизировать, слишком сложные параметры у атрибута
 
             SaveToFile("ComponentsWorldPart.cs", processGeneration.GetEntitiesWorldPart(), HECSGenerated);
-
-            if (resolversNeeded)
-            {
-                var path = HECSGenerated + @"Resolvers\";
-                var fastProvidersPath = HECSGenerated + @"FastComponentsProviders\";
-                var resolvers = processGeneration.GetSerializationResolvers();
-                var fastComponents = processGeneration.GetProvidersForFastComponent();
-                SaveToFile(MapResolver, processGeneration.GetResolverMap(), HECSGenerated);
-                SaveToFile(CustomAndUniversalResolvers, processGeneration.GetCustomResolversMap(), HECSGenerated);
-                SaveToFile("FastWorldPart.cs", processGeneration.GetFastWorldPart(), HECSGenerated);
-
-                CleanDirectory(path);
-
-                foreach (var c in resolvers)
-                    SaveToFile(c.name, c.content, path);
-
-                foreach (var c in fastComponents)
-                    SaveToFile(c.fileName, c.data, fastProvidersPath);
-            }
-
-            if (commandMapneeded)
-            {
-                var commandMap = processGeneration.GenerateNetworkCommandsAndShortIdsMap(networkCommands);
-
-                if (alrdyHaveCommandMap != null)
-                {
-                    SaveToFileToFullPath(commandMap, alrdyHaveCommandMap.FullName);
-                }
-                else
-                {
-                    SaveToFile(CommandsMap, commandMap, HECSGenerated);
-                }
-            }
-
-            if (bluePrintsNeeded)
-            {
-                var componetsBPFiles = processGeneration.GenerateComponentsBluePrints();
-                var systemsBPFiles = processGeneration.GenerateSystemsBluePrints();
-                var predicatesBPs = processGeneration.GetPredicateBluePrints();
-                var actionsBPs = processGeneration.GetActionsBluePrints();
-
-                //CleanDirectory(ScriptsPath + ComponentsBluePrintsPath);
-                //CleanDirectory(ScriptsPath + SystemsBluePrintsPath);
-
-                foreach (var c in componetsBPFiles)
-                    SaveToFile(c.name, c.classBody, ScriptsPath + ComponentsBluePrintsPath);
-
-                foreach (var c in systemsBPFiles)
-                    SaveToFile(c.name, c.classBody, ScriptsPath + SystemsBluePrintsPath);
-
-                foreach (var c in predicatesBPs)
-                    SaveToFile(c.Item1, c.Item2, ScriptsPath + PredicatesBlueprints);
-                
-                foreach (var c in actionsBPs)
-                    SaveToFile(c.Item1, c.Item2, ScriptsPath + ActionsBlueprints);
-
-                SaveToFile(BluePrintsProvider, processGeneration.GetBluePrintsProvider(), HECSGenerated, needToImport: true);
-            }
         }
 
         private static void CleanDirectory(string path)
@@ -302,35 +200,6 @@ namespace RoslynHECS
 
         private static void ProcessStructs(StructDeclarationSyntax s)
         {
-            var structCurrent = s.Identifier.ValueText;
-            structByName.TryAdd(structCurrent, s);
-
-            if (s.BaseList != null && s.BaseList.ChildNodes().Any(x => x.ToString().Contains(typeof(IGlobalCommand).Name)))
-            {
-                globalCommands.AddOrRemoveElement(s, true);
-                localCommands.AddOrRemoveElement(s, true);
-                Console.WriteLine("нашли глобальную команду " + structCurrent);
-            }
-
-            if (s.BaseList != null && s.BaseList.ChildNodes().Any(x => x.ToString().Contains("IFastComponent")))
-            {
-                fastComponents.AddOrRemoveElement(s, true);
-            }
-
-            if (s.BaseList != null && s.BaseList.ChildNodes().Any(x => x.ToString().Contains(typeof(ICommand).Name)))
-            {
-                localCommands.AddOrRemoveElement(s, true);
-                Console.WriteLine("нашли локальную команду " + structCurrent);
-            }
-
-            if (s.BaseList != null && s.BaseList.ChildNodes().Any(x => x.ToString().Contains("INetworkCommand") || x.ToString().Contains("INetworkLocalCommand")))
-            {
-                globalCommands.AddOrRemoveElement(s, true);
-                localCommands.AddOrRemoveElement(s, true);
-                networkCommands.AddOrRemoveElement(s, true);
-                Console.WriteLine("нашли локальную команду " + structCurrent);
-            }
-
             //we add here custom resolvers what alrdy on project
             if (s.AttributeLists.Count > 0)
             { 
@@ -372,98 +241,7 @@ namespace RoslynHECS
                 .Select(assemblySymbol => assemblySymbol.GetTypeByMetadataName(typeMetadataName))
                 .Where(t => t != null);
         }
-
-        private static void ProcessInterfaces()
-        {
-            foreach (var i in interfacesOverData)
-            {
-                if (i.Value.isPartial)
-                {
-                    foreach (var p in i.Value.Parts)
-                    {
-                        ProcessInterfaceBaseList(p, i);
-                    }
-                }
-                else
-                {
-                    ProcessInterfaceBaseList(i.Value.InterfaceDeclaration, i);
-                }
-            }
-
-            foreach (var c in classes)
-            {
-                var baseTypes = c.BaseList;
-
-                if (baseTypes != null)
-                {
-                    foreach (var t in baseTypes.DescendantNodes())
-                    {
-                        if (interfacesOverData.TryGetValue(t.ToString(), out var interfaceLinked))
-                        {
-                            interfaceCache.Clear();
-                            interfaceLinked.GetInterfaces(interfaceCache);
-
-                            foreach (var i in interfaceCache)
-                            {
-                                var nodes = i.InterfaceDeclaration.BaseList?.DescendantNodes();
-
-                                if (nodes != null)
-                                {
-                                    foreach (var baseNode in nodes)
-                                    {
-                                        ProcessGenericInterface(baseNode);
-                                    }
-                                }
-                            }
-                        }
-
-                        ProcessGenericInterface(t);
-                    }
-                }
-            }
-        }
-
-        private static void ProcessGenericInterface(SyntaxNode t)
-        {
-            if (t is GenericNameSyntax generic)
-            {
-                if (genericInterfacesOverData.ContainsKey(t.ToString())) return;
-
-                if (interfacesOverData.TryGetValue(generic.Identifier.ToString(), out var linkedInterface))
-                {
-                    var tp = generic;
-                    genericInterfacesOverData.Add(t.ToString(), new LinkedGenericInterfaceNode
-                    {
-                        BaseInterface = linkedInterface,
-                        GenericNameSyntax = generic,
-                        GenericType = generic.TypeArgumentList.Arguments[0].ToString(),
-                        MultiArguments = generic.TypeArgumentList.Arguments.Count > 1,
-                        Name = t.ToString(),
-                    });
-                }
-            }
-        }
-
-        private static void ProcessInterfaceBaseList(InterfaceDeclarationSyntax p, KeyValuePair<string, LinkedInterfaceNode> i)
-        {
-            var partBaseList = p.BaseList;
-
-            if (partBaseList == null) return;
-
-            foreach (var baseType in partBaseList.Types)
-            {
-                var key = baseType.ToString();
-
-                if (interfacesOverData.ContainsKey(key))
-                {
-                    i.Value.Parents.Add(interfacesOverData[key]);
-
-                    if (!i.Value.isHaveReact && interfacesOverData[key].isHaveReact)
-                        i.Value.isHaveReact = true;
-                }
-            }
-        }
-
+     
         private static void ProcessClasses()
         {
             foreach (var comp in componentOverData.Values)
