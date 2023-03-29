@@ -22,7 +22,8 @@ namespace RoslynHECS
         public static List<string> components = new List<string>(2048);
 
         //resolvers collection
-        public static Dictionary<string, ResolverData> customHecsResolvers = new Dictionary<string, ResolverData>(256);
+        public static Dictionary<string, ResolverData> customHecsResolvers = new Dictionary<string, ResolverData>(512);
+        public static Dictionary<string, LinkedNode> linkedNodes = new Dictionary<string, LinkedNode>(512);
 
         public static List<ClassDeclarationSyntax> classes;
         public static List<StructDeclarationSyntax> structs;
@@ -32,27 +33,9 @@ namespace RoslynHECS
         //public static string ScriptsPath = @"E:\repos\Kefir\minilife-server\MinilifeServer\";
         //public static string HECSGenerated = @"E:\repos\Kefir\minilife-server\MinilifeServer\HECSGenerated\";
 
-        private const string TypeProvider = "TypeProvider.cs";
-        private const string MaskProvider = "MaskProvider.cs";
-        private const string HecsMasks = "HECSMasks.cs";
-        private const string SystemBindings = "SystemBindings.cs";
-        private const string ComponentContext = "ComponentContext.cs";
-        private const string BluePrintsProvider = "BluePrintsProvider.cs";
-        private const string Documentation = "Documentation.cs";
-        private const string MapResolver = "MapResolver.cs";
-        private const string CustomAndUniversalResolvers = "CustomAndUniversalResolvers.cs";
-        private const string CommandsMap = "CommandsMap.cs";
+        private const string JSONResolveAttribute = "JSONResolveAttribute";
 
-        private const string ComponentsBluePrintsPath = "/Scripts/BluePrints/ComponentsBluePrints/";
-        private const string SystemsBluePrintsPath = "/Scripts/BluePrints/SystemsBluePrint/";
-        private const string PredicatesBlueprints = "/Scripts/BluePrints/PredicatesBlueprints/";
-        private const string ActionsBlueprints = "/Scripts/BluePrints/Actions/";
-
-        private const string BaseComponent = "BaseComponent";
-        private const string HECSManualResolver = "HECSManualResolver";
-        private const string HECSResolver = "HECSResolver";
-
-        private static List<FileInfo> files;
+        private static List<FileInfo> files ;
 
         private static FileInfo alrdyHaveCommandMap;
         public static CSharpCompilation Compilation;
@@ -81,9 +64,6 @@ namespace RoslynHECS
                     var s = File.ReadAllText(f.FullName);
                     var syntaxTree = CSharpSyntaxTree.ParseText(s);
                     list.Add(syntaxTree);
-
-                    if (f.Name == CommandsMap)
-                        alrdyHaveCommandMap = f;
                 }
             }
 
@@ -202,7 +182,7 @@ namespace RoslynHECS
                 {
                     foreach (var attr in a.Attributes)
                     {
-                        if (attr.Name.ToString().Contains(HECSManualResolver))
+                        if (attr.Name.ToString() == JSONResolveAttribute)
                         {
                             var arguments = attr.ArgumentList.Arguments;
 
@@ -239,12 +219,6 @@ namespace RoslynHECS
 
         private static void ProcessClasses()
         {
-            foreach (var comp in componentOverData.Values)
-            {
-                if (comp.IsAbstract) continue;
-                componentsDeclarations.Add(comp.ClassDeclaration);
-            }
-
             //we gather here classes 
             foreach (var c in classes)
             {
@@ -254,11 +228,9 @@ namespace RoslynHECS
                     {
                         foreach (var attr in a.Attributes)
                         {
-                            if (attr.ToString().Contains(HECSResolver))
+                            if (attr.ToString() == JSONResolveAttribute)
                             {
-                                var name = c.Identifier.ValueText;
-                                hecsResolverCollection.Add(c.Identifier.ValueText, LinkedNodeHelper.GetLinkedNode(c));
-                                customHecsResolvers.Add(name, new ResolverData { TypeToResolve = name, ResolverName = name + Resolver });
+
                             }
                         }
                     }
@@ -362,4 +334,53 @@ namespace RoslynHECS
             }
         }
     }
+
+    public class  LinkedNode
+    {
+        public LinkedNode Parent;
+        public TypeDeclarationSyntax Type;
+        public HashSet<TypeDeclarationSyntax> Parts = new HashSet<TypeDeclarationSyntax>(3);
+
+        public string Name;
+        public bool IsStruct;
+        public bool IsAbstract;
+        public bool IsPartial;
+
+        public HashSet<MemberDeclarationSyntax> fieldsWithAttibutes = new HashSet<MemberDeclarationSyntax>(8);
+
+        public LinkedNode(ClassDeclarationSyntax classDeclarationSyntax)
+        {
+            IsAbstract = classDeclarationSyntax.IsKind(SyntaxKind.AbstractKeyword);
+            IsPartial = classDeclarationSyntax.IsKind(SyntaxKind.PartialKeyword);
+
+            if (IsPartial)
+            {
+                foreach (var gatheredClass in Program.classes)
+                {
+                    if (gatheredClass.Identifier.ValueText == classDeclarationSyntax.Identifier.ValueText)
+                    {
+                        Parts.Add(gatheredClass);
+                    }
+                }
+            }
+
+            if (SyntaxHelper.TryGetParent(classDeclarationSyntax, out var parent, out var parentClass))
+            {
+                if (Program.linkedNodes.TryGetValue(parent, out var linkedNode))
+                {
+                    Parent = linkedNode;
+                }
+                else
+                {
+                    Parent = new LinkedNode(parentClass);
+                }
+            }
+        }
+
+        public LinkedNode (StructDeclarationSyntax structDeclarationSyntax)
+        {
+            IsStruct = true;
+            IsPartial = structDeclarationSyntax.IsKind(SyntaxKind.PartialKeyword);
+        }
+    } 
 }

@@ -43,69 +43,6 @@ namespace HECSFramework.Core.Generator
         private HashSet<ClassDeclarationSyntax> systemCasheParentsAndPartial = new HashSet<ClassDeclarationSyntax>(64);
 
         #region Resolvers
-        public List<(string name, string content)> GetSerializationResolvers()
-        {
-            var list = new List<(string, string)>();
-
-            foreach (var c in Program.componentOverData.Values)
-            {
-                if (c.IsAbstract)
-                    continue;
-
-                var needContinue = false;
-
-                if (c.IsPartial)
-                {
-                    var attr2 = c.Parts.SelectMany(x => x.AttributeLists);
-
-                    if (attr2 != null)
-                    {
-                        foreach (var attributeList in attr2)
-                        {
-                            foreach (var a in attributeList.Attributes)
-                            {
-                                if (a.Name.ToString() == "HECSDefaultResolver")
-                                {
-                                    containersSolve.Add(c.ClassDeclaration);
-                                    needContinue = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    var attributeList = c.ClassDeclaration.AttributeLists;
-
-                    foreach (var a in attributeList)
-                    {
-                        foreach (var attr in a.Attributes)
-                        {
-                            if (attr.Name.ToString() == "HECSDefaultResolver")
-                            {
-                                containersSolve.Add(c.ClassDeclaration);
-                                needContinue = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (needContinue)
-                    continue;
-
-                containersSolve.Add(c.ClassDeclaration);
-                needResolver.Add(c.ClassDeclaration);
-            }
-
-            foreach (var c in needResolver)
-            {
-                list.Add((c.Identifier.ValueText + Resolver + Cs, GetResolver(Program.componentOverData[c.Identifier.ValueText]).ToString()));
-            }
-
-            return list;
-        }
 
         public (bool valid, int Order, string resolver) IsValidField(MemberDeclarationSyntax fieldDeclarationSyntax)
         {
@@ -147,111 +84,111 @@ namespace HECSFramework.Core.Generator
             return (false, -1, string.Empty);
         }
 
-        public static void GetNamespace(MemberDeclarationSyntax declaration, ISyntax tree)
-        {
-            if (declaration is FieldDeclarationSyntax field)
-            {
-                if (field.Declaration.Type is GenericNameSyntax generic)
-                {
-                    if (GetNameSpaceForCollection(generic.Identifier.Value.ToString(), out var namespaceCollection))
-                    {
-                        tree.AddUnique(new UsingSyntax(namespaceCollection));
-                    }
+        //public static void GetNamespace(MemberDeclarationSyntax declaration, ISyntax tree)
+        //{
+        //    if (declaration is FieldDeclarationSyntax field)
+        //    {
+        //        if (field.Declaration.Type is GenericNameSyntax generic)
+        //        {
+        //            if (GetNameSpaceForCollection(generic.Identifier.Value.ToString(), out var namespaceCollection))
+        //            {
+        //                tree.AddUnique(new UsingSyntax(namespaceCollection));
+        //            }
 
-                    foreach (var a in generic.TypeArgumentList.Arguments)
-                    {
-                        var arg = a.ToString();
+        //            foreach (var a in generic.TypeArgumentList.Arguments)
+        //            {
+        //                var arg = a.ToString();
 
-                        if (Program.structByName.TryGetValue(arg, out var value))
-                        {
-                            if (value.Parent != null && value.Parent is NamespaceDeclarationSyntax ns)
-                            {
-                                tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
-                            }
-                        }
+        //                if (Program.structByName.TryGetValue(arg, out var value))
+        //                {
+        //                    if (value.Parent != null && value.Parent is NamespaceDeclarationSyntax ns)
+        //                    {
+        //                        tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
+        //                    }
+        //                }
 
-                        if (Program.classesByName.TryGetValue(arg, out var classObject))
-                        {
-                            if (classObject.Parent != null && classObject.Parent is NamespaceDeclarationSyntax ns)
-                            {
-                                tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
-                            }
-                        }
-                    }
-                }
-                else
-                {
+        //                if (Program.classesByName.TryGetValue(arg, out var classObject))
+        //                {
+        //                    if (classObject.Parent != null && classObject.Parent is NamespaceDeclarationSyntax ns)
+        //                    {
+        //                        tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
+        //                    }
+        //                }
+        //            }
+        //        }
+        //        else
+        //        {
 
-                    var arg = field.Declaration.Type.ToString();
+        //            var arg = field.Declaration.Type.ToString();
 
-                    if (Program.structByName.TryGetValue(arg, out var value))
-                    {
-                        if (value.Parent != null && value.Parent is NamespaceDeclarationSyntax ns)
-                        {
-                            tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
-                        }
-                    }
+        //            if (Program.structByName.TryGetValue(arg, out var value))
+        //            {
+        //                if (value.Parent != null && value.Parent is NamespaceDeclarationSyntax ns)
+        //                {
+        //                    tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
+        //                }
+        //            }
 
-                    if (Program.classesByName.TryGetValue(arg, out var classObject))
-                    {
-                        if (classObject.Parent != null && classObject.Parent is NamespaceDeclarationSyntax ns)
-                        {
-                            tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
-                        }
-                    }
-                }
-            }
+        //            if (Program.classesByName.TryGetValue(arg, out var classObject))
+        //            {
+        //                if (classObject.Parent != null && classObject.Parent is NamespaceDeclarationSyntax ns)
+        //                {
+        //                    tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
+        //                }
+        //            }
+        //        }
+        //    }
 
-            if (declaration is PropertyDeclarationSyntax property)
-            {
+        //    if (declaration is PropertyDeclarationSyntax property)
+        //    {
 
 
-                if (property.Type is GenericNameSyntax generic)
-                {
-                    foreach (var a in generic.TypeArgumentList.Arguments)
-                    {
-                        var arg = a.ToString();
+        //        if (property.Type is GenericNameSyntax generic)
+        //        {
+        //            foreach (var a in generic.TypeArgumentList.Arguments)
+        //            {
+        //                var arg = a.ToString();
 
-                        if (Program.structByName.TryGetValue(arg, out var value))
-                        {
-                            if (value.Parent != null && value.Parent is NamespaceDeclarationSyntax ns)
-                            {
-                                tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
-                            }
-                        }
+        //                if (Program.structByName.TryGetValue(arg, out var value))
+        //                {
+        //                    if (value.Parent != null && value.Parent is NamespaceDeclarationSyntax ns)
+        //                    {
+        //                        tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
+        //                    }
+        //                }
 
-                        if (Program.classesByName.TryGetValue(arg, out var classObject))
-                        {
-                            if (classObject.Parent != null && classObject.Parent is NamespaceDeclarationSyntax ns)
-                            {
-                                tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
-                            }
-                        }
-                    }
-                }
-                else
-                {
+        //                if (Program.classesByName.TryGetValue(arg, out var classObject))
+        //                {
+        //                    if (classObject.Parent != null && classObject.Parent is NamespaceDeclarationSyntax ns)
+        //                    {
+        //                        tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
+        //                    }
+        //                }
+        //            }
+        //        }
+        //        else
+        //        {
 
-                    var arg = property.Type.ToString();
+        //            var arg = property.Type.ToString();
 
-                    if (Program.structByName.TryGetValue(arg, out var value))
-                    {
-                        if (value.Parent != null && value.Parent is NamespaceDeclarationSyntax ns)
-                        {
-                            tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
-                        }
-                    }
+        //            if (Program.structByName.TryGetValue(arg, out var value))
+        //            {
+        //                if (value.Parent != null && value.Parent is NamespaceDeclarationSyntax ns)
+        //                {
+        //                    tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
+        //                }
+        //            }
 
-                    if (Program.classesByName.TryGetValue(arg, out var classObject))
-                    {
-                        if (classObject.Parent != null && classObject.Parent is NamespaceDeclarationSyntax ns)
-                        {
-                            tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
-                        }
-                    }
-                }
-            }
-        }
+        //            if (Program.classesByName.TryGetValue(arg, out var classObject))
+        //            {
+        //                if (classObject.Parent != null && classObject.Parent is NamespaceDeclarationSyntax ns)
+        //                {
+        //                    tree.AddUnique(new UsingSyntax(ns.Name.ToString()));
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
 
         public ISyntax GetPartialClassForSerializePrivateFields(ClassDeclarationSyntax classDeclarationSyntax, string resolver, out ISyntax saveBody, out ISyntax loadBody)
         {
@@ -406,7 +343,7 @@ namespace HECSFramework.Core.Generator
 
                 if (kind.Contains("Dictionary"))
                 {
-                    AddUniqueSyntax(currentUsings, new UsingSyntax("System.Collections.Generic"));
+                    currentUsings.AddUnique(new UsingSyntax("System.Collections.Generic"));
                 }
 
                 foreach (var s in collection)
@@ -497,28 +434,13 @@ namespace HECSFramework.Core.Generator
 
             var classes = Program.classes.Where(x => x.Identifier.ValueText == nameOfNode).ToList();
             var structs = Program.structs.Where(x => x.Identifier.ValueText == nameOfNode).ToList();
-            var interfaces = Program.interfaces.Where(x => x.Identifier.ValueText == nameOfNode).ToList();
 
             var need = new List<TypeDeclarationSyntax>();
             need.AddRange(classes);
             need.AddRange(structs);
             //need.AddRange(interfaces);
 
-            foreach (var i in interfaces)
-            {
-                if (i.Parent is NamespaceDeclarationSyntax nspace)
-                {
-                    if (nspace.Name is IdentifierNameSyntax identifier)
-                    {
-                        AddUniqueSyntax(tree, new UsingSyntax(identifier.ToString()));
-                    }
-                    else if (nspace.Name is QualifiedNameSyntax identifier2)
-                    {
-                        AddUniqueSyntax(tree, new UsingSyntax(identifier2.ToString()));
-                    }
-                }
-            }
-
+           
             foreach (var c in need)
             {
                 var childNodes = c.ChildNodes();
@@ -943,13 +865,13 @@ namespace HECSFramework.Core.Generator
 
             foreach (var cr in Program.customHecsResolvers)
             {
-                if (Program.classesByName.TryGetValue(cr.Key, out var classNeeded))
-                {
-                    if (classNeeded.Parent is NamespaceDeclarationSyntax namespaceDeclaration)
-                    {
-                        usings.AddUnique(new UsingSyntax(namespaceDeclaration.Name.ToString()));
-                    }
-                }
+                //if (Program.classesByName.TryGetValue(cr.Key, out var classNeeded))
+                //{
+                //    if (classNeeded.Parent is NamespaceDeclarationSyntax namespaceDeclaration)
+                //    {
+                //        usings.AddUnique(new UsingSyntax(namespaceDeclaration.Name.ToString()));
+                //    }
+                //}
 
                 customTypeToResolvers.Tree.Add(GetDictionaryHelper.DictionaryBodyRecord(4, $"typeof({cr.Key})",
                     $"new CustomResolverProvider<{cr.Key}, {cr.Value.ResolverName}>()"));
@@ -968,17 +890,16 @@ namespace HECSFramework.Core.Generator
         private ISyntax GetUniversalResolvers(ISyntax usings)
         {
             var tree = new TreeSyntaxNode();
-            foreach (var ur in Program.hecsResolverCollection)
-            {
-                tree.Add(GetUniversalResolver(ur.Value, usings));
-            }
+            //foreach (var ur in Program.hecsResolverCollection)
+            //{
+            //    tree.Add(GetUniversalResolver(ur.Value, usings));
+            //}
 
             return tree;
         }
 
         private ISyntax GetUniversalResolver(LinkedNode c, ISyntax usings)
         {
-            c.GetAllParentsAndParts(c.Parts);
 
             var tree = new TreeSyntaxNode();
             var fields = new TreeSyntaxNode();
@@ -1012,13 +933,6 @@ namespace HECSFramework.Core.Generator
             tree.Add(new RightScopeSyntax(1));
             tree.Add(new ParagraphSyntax());
 
-
-            c.Interfaces.Clear();
-            c.GetInterfaces(c.Interfaces);
-
-            if (c.Interfaces.Any(x => x.Name == "IBeforeSerializationComponent"))
-                constructor.Add(new TabSimpleSyntax(3, $"{c.Name.ToLower()}.BeforeSync();"));
-
             //((c.Members.ToArray()[0] as FieldDeclarationSyntax).AttributeLists.ToArray()[0].Attributes.ToArray()[0] as AttributeSyntax).ArgumentList.Arguments.ToArray()[0].ToString()
             var typeFields = new List<GatheredField>(128);
             List<(string type, string name)> fieldsForConstructor = new List<(string type, string name)>();
@@ -1034,7 +948,7 @@ namespace HECSFramework.Core.Generator
                         if (!validate.valid) continue;
 
 
-                        GetNamespace(member, usings);
+                        //GetNamespace(member, usings);
 
                         string type = "";
                         string fieldName = "";
@@ -1100,17 +1014,17 @@ namespace HECSFramework.Core.Generator
                     }
                     else
                     {
-                        AddUniqueSyntax(usings, new UsingSyntax("HECSFramework.Serialize"));
-                        constructor.Add(new TabSimpleSyntax(3, $"this.{f.FieldName} = new {f.ResolverName}().In(ref {c.Name.ToLower()}.{f.FieldName});"));
-                        outFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName}.Out(ref {c.Name.ToLower()}.{f.FieldName});"));
+                        //AddUniqueSyntax(usings, new UsingSyntax("HECSFramework.Serialize"));
+                        //constructor.Add(new TabSimpleSyntax(3, $"this.{f.FieldName} = new {f.ResolverName}().In(ref {c.Name.ToLower()}.{f.FieldName});"));
+                        //outFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName}.Out(ref {c.Name.ToLower()}.{f.FieldName});"));
                     }
                 }
             }
 
-            if (c.Interfaces.Any(x => x.Name == "IAfterSerializationComponent"))
-            {
-                outFunc.Add(new TabSimpleSyntax(3, $"{c.Name.ToLower()}.AfterSync();"));
-            }
+            //if (c.Interfaces.Any(x => x.Name == "IAfterSerializationComponent"))
+            //{
+            //    outFunc.Add(new TabSimpleSyntax(3, $"{c.Name.ToLower()}.AfterSync();"));
+            //}
 
             ////defaultConstructor.Add(DefaultConstructor(c, fieldsForConstructor, fields, constructor));
             constructor.Add(new TabSimpleSyntax(3, "return this;"));
@@ -1167,8 +1081,6 @@ namespace HECSFramework.Core.Generator
             tree.Add(new ParagraphSyntax());
             tree.Add(typeToIdDictionary);
             tree.Add(new ParagraphSyntax());
-            tree.Add(GetShortIdPart());
-            tree.Add(new ParagraphSyntax());
             tree.Add(InitPartialCommandResolvers());
             tree.Add(new RightScopeSyntax(1));
             tree.Add(new RightScopeSyntax(0));
@@ -1198,106 +1110,6 @@ namespace HECSFramework.Core.Generator
         /// here we codogen all around shortIDs
         /// </summary>
         /// <returns></returns>
-        public ISyntax GetShortIdPart()
-        {
-            var tree = new TreeSyntaxNode();
-            HashSet<ShortIDObject> shortIDs = new HashSet<ShortIDObject>(512);
-            ushort count = 1;
-
-            //gather network components
-            foreach (var c in Program.componentOverData.Values)
-            {
-                if (c.IsAbstract)
-                    continue;
-
-                foreach (var i in c.Interfaces)
-                {
-                    if (i.Name == INetworkComponent)
-                    {
-                        shortIDs.Add(new ShortIDObject
-                        {
-                            Type = c.Name,
-                            TypeCode = IndexGenerator.GenerateIndex(c.Name),
-                            DataType = 2,
-                        });
-                    }
-                }
-            }
-
-            foreach (var c in Program.networkCommands)
-            {
-                var shortIDdata = new ShortIDObject();
-
-                shortIDdata.Type = c.Identifier.ValueText;
-                shortIDdata.TypeCode = IndexGenerator.GenerateIndex(c.Identifier.ValueText);
-
-                if (c.BaseList.ChildNodes().Any(x => x.ToString().Contains("INetworkCommand")))
-                {
-                    shortIDdata.DataType = 0;
-                }
-                else
-                {
-                    shortIDdata.DataType = 1;
-                }
-
-                shortIDs.Add(shortIDdata);
-            }
-
-            shortIDs = shortIDs.OrderBy(x => x.Type).ToHashSet();
-
-            foreach (var i in shortIDs)
-            {
-                i.ShortId = count;
-                count++;
-            }
-
-            tree.Add(GetDictionaryHelper.GetDictionaryMethod("GetTypeToShort", nameof(Type), "ushort", 2, out var typeToshortBody));
-            tree.Add(GetDictionaryHelper.GetDictionaryMethod("GetShortToTypeCode", "ushort", "int", 2, out var shortToTypeCodeBody));
-            tree.Add(GetDictionaryHelper.GetDictionaryMethod("GetShortToDataType", "ushort", "byte", 2, out var getShortToDataType));
-            tree.Add(GetDictionaryHelper.GetDictionaryMethod("GetTypeCodeToShort", "int", "ushort", 2, out var typeCodeToShort));
-            tree.Add(GetDictionaryHelper.GetDictionaryMethod("GetComponentProviders", "int", "ComponentSerializeProvider", 2, out var componentProviders));
-
-            foreach (var i in shortIDs)
-            {
-                typeToshortBody.Tree.Add(GetDictionaryHelper.DictionaryBodyRecord(4, $"typeof({i.Type})", i.ShortId.ToString()));
-                shortToTypeCodeBody.Tree.Add(GetDictionaryHelper.DictionaryBodyRecord(4, i.ShortId.ToString(), i.TypeCode.ToString()));
-                getShortToDataType.Tree.Add(GetDictionaryHelper.DictionaryBodyRecord(4, i.ShortId.ToString(), i.DataType.ToString()));
-                typeCodeToShort.Tree.Add(GetDictionaryHelper.DictionaryBodyRecord(4, i.TypeCode.ToString(), i.ShortId.ToString()));
-            }
-
-            foreach (var c in Program.componentOverData.Values)
-            {
-                if (c.IsAbstract)
-                    continue;
-
-                if (c.Interfaces.Any(x => x.Name == INetworkComponent))
-                {
-                    componentProviders.Tree.Add(GetDictionaryHelper.DictionaryBodyRecord(4,
-                        IndexGenerator.GenerateIndex(c.Name).ToString(), $"new ComponentResolver<{c.Name},{c.Name}{Resolver}, {c.Name}{Resolver}>()"));
-                }
-            }
-
-
-            tree.Add(InitShortIDPart());
-
-            return tree;
-        }
-
-        private ISyntax InitShortIDPart()
-        {
-            var tree = new TreeSyntaxNode();
-
-            tree.Add(new TabSimpleSyntax(2, "private void InitShortIds()"));
-            tree.Add(new LeftScopeSyntax(2));
-            tree.Add(new TabSimpleSyntax(3, "typeToShort = GetTypeToShort();"));
-            tree.Add(new TabSimpleSyntax(3, "shortToTypeCode = GetShortToTypeCode();"));
-            tree.Add(new TabSimpleSyntax(3, "shortToDataType = GetShortToDataType();"));
-            tree.Add(new TabSimpleSyntax(3, "typeCodeToShort = GetTypeCodeToShort();"));
-            tree.Add(new TabSimpleSyntax(3, "componentProviders = GetComponentProviders();"));
-            tree.Add(new RightScopeSyntax(2));
-
-            return tree;
-        }
 
         private ISyntax GetCommandMethod(StructDeclarationSyntax command)
         {
