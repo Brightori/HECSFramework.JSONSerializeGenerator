@@ -28,12 +28,12 @@ namespace RoslynHECS
         public static List<ClassDeclarationSyntax> classes;
         public static List<StructDeclarationSyntax> structs;
 
-        public static string ScriptsPath = @"D:\Develop\Shootervertical\Assets\";
-        public static string HECSGenerated = @"D:\Develop\Shootervertical\Assets\Scripts\HECSGenerated\";
+        public static string ScriptsPath = @"D:\UniverseClientCorp\Assets\";
+        public static string HECSGenerated = @"D:\UniverseClientCorp\Assets\Scripts\HECSGenerated\";
         //public static string ScriptsPath = @"E:\repos\Kefir\minilife-server\MinilifeServer\";
         //public static string HECSGenerated = @"E:\repos\Kefir\minilife-server\MinilifeServer\HECSGenerated\";
 
-        private const string JSONResolveAttribute = "JSONResolveAttribute";
+        private const string JSONResolveAttribute = "JSONResolve";
 
         private static List<FileInfo> files ;
 
@@ -230,7 +230,8 @@ namespace RoslynHECS
                         {
                             if (attr.ToString() == JSONResolveAttribute)
                             {
-
+                                var debug = attr.ToString();
+                                var linkedNode = new LinkedNode(c);
                             }
                         }
                     }
@@ -350,8 +351,8 @@ namespace RoslynHECS
 
         public LinkedNode(ClassDeclarationSyntax classDeclarationSyntax)
         {
-            IsAbstract = classDeclarationSyntax.IsKind(SyntaxKind.AbstractKeyword);
-            IsPartial = classDeclarationSyntax.IsKind(SyntaxKind.PartialKeyword);
+            IsAbstract = classDeclarationSyntax.Modifiers.Any(x => x.IsKind(SyntaxKind.AbstractKeyword)); 
+            IsPartial = classDeclarationSyntax.Modifiers.Any(x=> x.IsKind(SyntaxKind.PartialKeyword));
 
             if (IsPartial)
             {
