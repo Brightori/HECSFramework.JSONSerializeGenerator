@@ -12,10 +12,10 @@ namespace RoslynHECS.Helpers
         {
             if (classDeclarationSyntax.BaseList != null)
             {
-                var parentType =  classDeclarationSyntax.BaseList.Types.FirstOrDefault(x => x.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.ClassDeclaration));
-                parentClass = Program.classes.FirstOrDefault(x => x.Identifier.ValueText == parentType.Type.ToString());
+                var parentType =  classDeclarationSyntax.BaseList.Types.FirstOrDefault(x => Program.nameToClassDeclaration.ContainsKey(x.Type.ToString()));
+                parentClass = parentType != null ? Program.nameToClassDeclaration[parentType.ToString()] : null;
                 parent = parentClass != null ? parentClass.Identifier.ValueText : string.Empty;
-                return true;
+                return parentClass != null;
             }
 
             parent = null;

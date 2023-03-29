@@ -24,12 +24,13 @@ namespace RoslynHECS
         //resolvers collection
         public static Dictionary<string, ResolverData> customHecsResolvers = new Dictionary<string, ResolverData>(512);
         public static Dictionary<string, LinkedNode> linkedNodes = new Dictionary<string, LinkedNode>(512);
+        public static Dictionary<string, ClassDeclarationSyntax> nameToClassDeclaration = new Dictionary<string, ClassDeclarationSyntax>(512);
 
         public static List<ClassDeclarationSyntax> classes;
         public static List<StructDeclarationSyntax> structs;
 
-        public static string ScriptsPath = @"D:\UniverseClientCorp\Assets\";
-        public static string HECSGenerated = @"D:\UniverseClientCorp\Assets\Scripts\HECSGenerated\";
+        public static string ScriptsPath = @"D:\Develop\UniverseClient\Assets\";
+        public static string HECSGenerated = @"D:\Develop\UniverseClient\Assets\Scripts\HECSGenerated\";
         //public static string ScriptsPath = @"E:\repos\Kefir\minilife-server\MinilifeServer\";
         //public static string HECSGenerated = @"E:\repos\Kefir\minilife-server\MinilifeServer\HECSGenerated\";
 
@@ -40,7 +41,7 @@ namespace RoslynHECS
         private static FileInfo alrdyHaveCommandMap;
         public static CSharpCompilation Compilation;
 
-        static async Task Main(string[] args)
+        static void Main(string[] args)
         {
             CheckArgs(args);
 
@@ -230,7 +231,6 @@ namespace RoslynHECS
                         {
                             if (attr.ToString() == JSONResolveAttribute)
                             {
-                                var debug = attr.ToString();
                                 var linkedNode = new LinkedNode(c);
                             }
                         }
@@ -252,6 +252,7 @@ namespace RoslynHECS
             {
                 base.VisitClassDeclaration(node);
                 Classes.Add(node); // save your visited classes
+                nameToClassDeclaration.TryAdd(node.Identifier.ValueText, node);
                 return node;
             }
         }
@@ -353,6 +354,8 @@ namespace RoslynHECS
         {
             IsAbstract = classDeclarationSyntax.Modifiers.Any(x => x.IsKind(SyntaxKind.AbstractKeyword)); 
             IsPartial = classDeclarationSyntax.Modifiers.Any(x=> x.IsKind(SyntaxKind.PartialKeyword));
+            Type = classDeclarationSyntax;
+            Name = classDeclarationSyntax.Identifier.ValueText;
 
             if (IsPartial)
             {
