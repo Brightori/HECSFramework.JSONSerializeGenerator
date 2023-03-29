@@ -2,11 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
-using HECSFramework.Core;
 using HECSFramework.Core.Generator;
-using HECSFramework.Core.Helpers;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -26,7 +23,6 @@ namespace RoslynHECS
 
         //resolvers collection
         public static Dictionary<string, ResolverData> customHecsResolvers = new Dictionary<string, ResolverData>(256);
-        public static Dictionary<string, LinkedNode> hecsResolverCollection = new Dictionary<string, LinkedNode>(512);
 
         public static List<ClassDeclarationSyntax> classes;
         public static List<StructDeclarationSyntax> structs;
@@ -56,7 +52,6 @@ namespace RoslynHECS
         private const string HECSManualResolver = "HECSManualResolver";
         private const string HECSResolver = "HECSResolver";
 
-        private static HashSet<LinkedInterfaceNode> interfaceCache = new HashSet<LinkedInterfaceNode>(32);
         private static List<FileInfo> files;
 
         private static FileInfo alrdyHaveCommandMap;
@@ -141,14 +136,14 @@ namespace RoslynHECS
         private static void SaveFiles()
         {
             var processGeneration = new CodeGenerator();
-            SaveToFile(TypeProvider, processGeneration.GenerateTypesMapRoslyn(), HECSGenerated);
+            //SaveToFile(TypeProvider, processGeneration.GenerateTypesMapRoslyn(), HECSGenerated);
             //SaveToFile(MaskProvider, processGeneration.GenerateMaskProviderRoslyn(), HECSGenerated);
-            SaveToFile(SystemBindings, processGeneration.GetSystemBindsByRoslyn(), HECSGenerated);
+            //SaveToFile(SystemBindings, processGeneration.GetSystemBindsByRoslyn(), HECSGenerated);
             //SaveToFile(ComponentContext, processGeneration.GetComponentContextRoslyn(), HECSGenerated);
-            SaveToFile(HecsMasks, processGeneration.GenerateHecsMasksRoslyn(), HECSGenerated);
+            //SaveToFile(HecsMasks, processGeneration.GenerateHecsMasksRoslyn(), HECSGenerated);
             //SaveToFile(Documentation, processGeneration.GetDocumentationRoslyn(), HECSGenerated); не получается нормально автоматизировать, слишком сложные параметры у атрибута
 
-            SaveToFile("ComponentsWorldPart.cs", processGeneration.GetEntitiesWorldPart(), HECSGenerated);
+            //SaveToFile("ComponentsWorldPart.cs", processGeneration.GetEntitiesWorldPart(), HECSGenerated);
         }
 
         private static void CleanDirectory(string path)
@@ -202,7 +197,7 @@ namespace RoslynHECS
         {
             //we add here custom resolvers what alrdy on project
             if (s.AttributeLists.Count > 0)
-            { 
+            {
                 foreach (var a in s.AttributeLists)
                 {
                     foreach (var attr in a.Attributes)
@@ -241,7 +236,7 @@ namespace RoslynHECS
                 .Select(assemblySymbol => assemblySymbol.GetTypeByMetadataName(typeMetadataName))
                 .Where(t => t != null);
         }
-     
+
         private static void ProcessClasses()
         {
             foreach (var comp in componentOverData.Values)
@@ -271,277 +266,6 @@ namespace RoslynHECS
             }
         }
 
-        private static void GatherComponents()
-        {
-            var pureComponents = classes.Where(x => x.Identifier.ValueText != "BaseComponent" && x.BaseList != null && x.BaseList.Types.Any(z => z.ToString() == "BaseComponent" || z.ToString() == "IComponent"));
-
-            foreach (var component in pureComponents)
-            {
-                var name = component.Identifier.ValueText;
-
-                if (componentOverData.ContainsKey(name))
-                {
-                    continue;
-                }
-
-                componentOverData.Add(component.Identifier.ValueText, new LinkedNode
-                {
-                    Name = name,
-                    ClassDeclaration = component,
-                    Parent = null,
-                    IsAbstract = component.Modifiers.Any(x => x.ValueText == "abstract"),
-                    IsPartial = component.Modifiers.Any(x => x.ValueText == "partial"),
-                    IsGeneric = component.TypeParameterList != null,
-                    Parts = new HashSet<ClassDeclarationSyntax>(),
-                    Interfaces = new HashSet<LinkedInterfaceNode>(),
-                });
-
-                if (componentOverData[name].IsPartial)
-                {
-                    componentOverData[name].Parts.Add(componentOverData[name].ClassDeclaration);
-                    var parts = classes.Where(x => x.Identifier.ValueText == name);
-
-                    foreach (var part in parts)
-                    {
-                        componentOverData[name].Parts.Add(part);
-
-                        var baseList = part.BaseList;
-
-                        if (baseList != null)
-                        {
-                            foreach (var tp in baseList.Types)
-                            {
-                                if (interfacesOverData.TryGetValue(tp.ToString(), out var node))
-                                {
-                                    componentOverData[name].Interfaces.Add(node);
-                                }
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    var baseList = component.BaseList?.Types;
-                    componentOverData[name].Parts.Add(componentOverData[name].ClassDeclaration);
-
-                    if (baseList != null)
-                    {
-                        foreach (var tp in baseList)
-                        {
-                            if (interfacesOverData.TryGetValue(tp.ToString(), out var node))
-                            {
-                                componentOverData[name].Interfaces.Add(node);
-                            }
-                        }
-                    }
-                }
-            }
-
-            foreach (var ln in componentOverData.Values.ToArray())
-            {
-                ProcessLinkNodesComponents(ln);
-            }
-        }
-
-        private static void GatherSystems()
-        {
-            var pureSystems = classes.Where(x => x.Identifier.ValueText != "BaseSystem" && x.BaseList != null && x.BaseList.Types.Any(z => z.ToString() == "BaseSystem" || z.ToString() == "ISystem"));
-
-            foreach (var sys in pureSystems)
-            {
-                var name = sys.Identifier.ValueText;
-
-                if (systemOverData.ContainsKey(name))
-                {
-                    continue;
-                }
-
-                systemOverData.Add(sys.Identifier.ValueText, new LinkedNode
-                {
-                    Name = name,
-                    ClassDeclaration = sys,
-                    Parent = null,
-                    IsAbstract = sys.Modifiers.Any(x => x.ValueText == "abstract"),
-                    IsPartial = sys.Modifiers.Any(x => x.ValueText == "partial"),
-                    Parts = new HashSet<ClassDeclarationSyntax>(),
-                    Interfaces = new HashSet<LinkedInterfaceNode>(),
-                });
-
-                if (systemOverData[name].IsPartial)
-                {
-                    var parts = classes.Where(x => x.Identifier.ValueText == name);
-
-                    foreach (var part in parts)
-                    {
-                        systemOverData[name].Parts.Add(part);
-
-                        var baseList = part.BaseList;
-
-                        if (baseList != null)
-                        {
-                            foreach (var tp in baseList.Types)
-                            {
-                                if (interfacesOverData.TryGetValue(tp.ToString(), out var node))
-                                {
-                                    systemOverData[name].Interfaces.Add(node);
-                                }
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    var baseList = sys.BaseList?.Types;
-
-                    if (baseList != null)
-                    {
-                        foreach (var tp in baseList)
-                        {
-                            if (interfacesOverData.TryGetValue(tp.ToString(), out var node))
-                            {
-                                systemOverData[name].Interfaces.Add(node);
-                            }
-                        }
-                    }
-                }
-            }
-
-            foreach (var ln in systemOverData.Values.ToArray())
-            {
-                ProcessLinkNodes(ln);
-            }
-        }
-
-        private static void ProcessLinkNodesComponents(LinkedNode linkedNode)
-        {
-            IEnumerable<ClassDeclarationSyntax> children = null;
-
-            if (linkedNode.IsGeneric)
-            {
-                children = classes.Where(x => x.BaseList != null && x.BaseList.Types.Any(z => z.Type is GenericNameSyntax nameSyntax && nameSyntax.Identifier.ValueText == linkedNode.Name));
-            }
-            else
-                children = classes.Where(x => x.BaseList != null && x.BaseList.Types.Any(z => z.ToString() == linkedNode.Name));
-
-            var neede = classes.FirstOrDefault(x => x.Identifier.ValueText == "BaseDefence");
-
-            foreach (var component in children)
-            {
-                var name = component.Identifier.ValueText;
-                if (componentOverData.ContainsKey(name))
-                {
-                    continue;
-                }
-
-                componentOverData.Add(component.Identifier.ValueText, new LinkedNode
-                {
-                    Name = name,
-                    ClassDeclaration = component,
-                    Parent = null,
-                    IsAbstract = component.Modifiers.Any(x => x.ValueText == "abstract"),
-                    IsPartial = component.Modifiers.Any(x => x.ValueText == "partial"),
-                    IsGeneric = component.TypeParameterList != null,
-                    Parts = new HashSet<ClassDeclarationSyntax>(8),
-                    Interfaces = new HashSet<LinkedInterfaceNode>(8),
-                });
-
-                if (componentOverData[name].IsPartial)
-                {
-                    componentOverData[name].Parts.Add(componentOverData[name].ClassDeclaration);
-                    var parts = classes.Where(x => x.Identifier.ValueText == name);
-
-                    foreach (var part in parts)
-                    {
-                        if (part == component) continue;
-                        componentOverData[name].Parts.Add(part);
-
-                        if (interfacesOverData.TryGetValue(part.ToString(), out var node))
-                        {
-                            componentOverData[name].Interfaces.Add(node);
-                        }
-                    }
-                }
-                else
-                {
-                    componentOverData[name].Parts.Add(componentOverData[name].ClassDeclaration);
-                    var baseList = component.BaseList?.Types;
-
-                    if (baseList != null)
-                    {
-                        foreach (var tp in baseList)
-                        {
-                            if (interfacesOverData.TryGetValue(tp.ToString(), out var node))
-                            {
-                                componentOverData[name].Interfaces.Add(node);
-                            }
-                        }
-                    }
-                }
-
-                componentOverData[name].Parent = linkedNode;
-                ProcessLinkNodesComponents(componentOverData[name]);
-            }
-        }
-
-        private static void ProcessLinkNodes(LinkedNode linkedNode)
-        {
-            var children = classes.Where(x => x.BaseList != null && x.BaseList.Types.Any(z => z.ToString() == linkedNode.Name));
-
-            foreach (var sys in children)
-            {
-                var name = sys.Identifier.ValueText;
-                if (systemOverData.ContainsKey(name))
-                {
-                    continue;
-                }
-
-                systemOverData.Add(sys.Identifier.ValueText, new LinkedNode
-                {
-                    Name = name,
-                    ClassDeclaration = sys,
-                    Parent = null,
-                    IsAbstract = sys.Modifiers.Any(x => x.ValueText == "abstract"),
-                    IsPartial = sys.Modifiers.Any(x => x.ValueText == "partial"),
-                    Parts = new HashSet<ClassDeclarationSyntax>(8),
-                    Interfaces = new HashSet<LinkedInterfaceNode>(8),
-                });
-
-                if (systemOverData[name].IsPartial)
-                {
-                    var parts = classes.Where(x => x.Identifier.ValueText == name);
-
-                    foreach (var part in parts)
-                    {
-                        if (part == sys) continue;
-                        systemOverData[name].Parts.Add(part);
-
-                        if (interfacesOverData.TryGetValue(part.ToString(), out var node))
-                        {
-                            systemOverData[name].Interfaces.Add(node);
-                        }
-                    }
-                }
-                else
-                {
-                    var baseList = sys.BaseList?.Types;
-
-                    if (baseList != null)
-                    {
-                        foreach (var tp in baseList)
-                        {
-                            if (interfacesOverData.TryGetValue(tp.ToString(), out var node))
-                            {
-                                systemOverData[name].Interfaces.Add(node);
-                            }
-                        }
-                    }
-                }
-
-                systemOverData[name].Parent = linkedNode;
-                ProcessLinkNodes(systemOverData[name]);
-            }
-        }
-
         class ClassVirtualizationVisitor : CSharpSyntaxRewriter
         {
             public ClassVirtualizationVisitor()
@@ -555,12 +279,6 @@ namespace RoslynHECS
             {
                 base.VisitClassDeclaration(node);
                 Classes.Add(node); // save your visited classes
-
-                if (!Program.classesByName.ContainsKey(node.Identifier.ValueText))
-                {
-                    Program.classesByName.Add(node.Identifier.ValueText, node);
-                }
-
                 return node;
             }
         }
@@ -641,253 +359,6 @@ namespace RoslynHECS
                 }
 
                 Console.WriteLine($"{loadProgress.Operation,-15} {loadProgress.ElapsedTime,-15:m\\:ss\\.fffffff} {projectDisplay}");
-            }
-        }
-    }
-
-    public class LinkedNode
-    {
-        public string Name;
-        public ClassDeclarationSyntax ClassDeclaration;
-        public LinkedNode Parent;
-        public bool IsAbstract;
-        public bool IsPartial;
-        public bool IsGeneric;
-
-        public IEnumerable<LinkedNode> GetParents()
-        {
-            var currentNode = this;
-
-            while (currentNode.Parent != null)
-            {
-                currentNode = currentNode.Parent;
-                yield return currentNode;
-            }
-                
-            yield break;
-        }
-
-        //containts parts includes itself
-        public HashSet<ClassDeclarationSyntax> Parts = new HashSet<ClassDeclarationSyntax>(8);
-
-        //include all interfaces, include from parents
-        public HashSet<LinkedInterfaceNode> Interfaces = new HashSet<LinkedInterfaceNode>(8);
-
-        public override bool Equals(object obj)
-        {
-            return obj is LinkedNode node &&
-                   Name == node.Name &&
-                   EqualityComparer<ClassDeclarationSyntax>.Default.Equals(ClassDeclaration, node.ClassDeclaration);
-        }
-
-        public override int GetHashCode()
-        {
-            return HashCode.Combine(Name, ClassDeclaration);
-        }
-
-        public void GetInterfaces(HashSet<LinkedInterfaceNode> interfaces)
-        {
-            if (IsPartial)
-            {
-                foreach (var p in Parts)
-                {
-                    if (p.BaseList != null)
-                    {
-                        foreach (var t in p.BaseList.Types)
-                        {
-                            if (Program.interfacesOverData.TryGetValue(t.ToString(), out var node))
-                            {
-                                interfaces.Add(node);
-                            }
-                        }
-                    }
-                }
-            }
-            else
-            {
-                if (ClassDeclaration.BaseList != null)
-                {
-                    foreach (var t in ClassDeclaration.BaseList.Types)
-                    {
-                        if (Program.interfacesOverData.TryGetValue(t.ToString(), out var node))
-                        {
-                            interfaces.Add(node);
-                        }
-                    }
-                }
-            }
-
-            foreach (var i in interfaces.ToArray())
-            {
-                i.GetInterfaces(interfaces);
-            }
-
-            if (Parent != null)
-                Parent.GetInterfaces(interfaces);
-        }
-
-        public void GetGenericInterfaces(HashSet<LinkedGenericInterfaceNode> interfaces)
-        {
-            Parent?.GetGenericInterfaces(interfaces);
-
-            if (IsPartial)
-            {
-                foreach (var p in Parts)
-                {
-                    var baseList = p.BaseList?.Types;
-
-                    if (baseList == null) continue;
-
-                    foreach (var type in baseList)
-                    {
-                        if (Program.genericInterfacesOverData.TryGetValue(type.ToString(), out var node))
-                        {
-                            interfaces.Add(node);
-                        }
-
-                        foreach (var i in Interfaces)
-                        {
-                            i.GetGenericInterfaces(interfaces);
-                        }
-                    }
-                }
-            }
-            else
-            {
-                var baseList = ClassDeclaration.BaseList?.Types;
-
-                if (baseList == null) return;
-
-                foreach (var type in baseList)
-                {
-                    if (Program.genericInterfacesOverData.TryGetValue(type.ToString(), out var node))
-                    {
-                        interfaces.Add(node);
-                    }
-
-                    foreach (var i in Interfaces)
-                    {
-                        i.GetGenericInterfaces(interfaces);
-                    }
-                }
-            }
-        }
-
-        public void GetAllParentsAndParts(HashSet<ClassDeclarationSyntax> classDeclarationSyntaxes)
-        {
-            classDeclarationSyntaxes.Add(ClassDeclaration);
-
-            if (IsPartial)
-            {
-                foreach (var p in Parts)
-                    classDeclarationSyntaxes.Add(p);
-            }
-            else
-                classDeclarationSyntaxes.Add(ClassDeclaration);
-
-            if (Parent != null)
-                Parent.GetAllParentsAndParts(classDeclarationSyntaxes);
-        }
-    }
-
-    public class LinkedGenericInterfaceNode
-    {
-        public string Name;
-        public GenericNameSyntax GenericNameSyntax;
-        public string GenericType;
-        public LinkedInterfaceNode BaseInterface;
-        public bool MultiArguments;
-    }
-
-    public class LinkedInterfaceNode
-    {
-        public string Name;
-        public InterfaceDeclarationSyntax InterfaceDeclaration;
-        public HashSet<InterfaceDeclarationSyntax> Parts;
-        public HashSet<LinkedInterfaceNode> Parents;
-        public bool isHaveReact;
-        public bool isPartial;
-
-        public override bool Equals(object obj)
-        {
-            return obj is LinkedInterfaceNode node &&
-                   Name == node.Name &&
-                   EqualityComparer<InterfaceDeclarationSyntax>.Default.Equals(InterfaceDeclaration, node.InterfaceDeclaration);
-        }
-
-        public override int GetHashCode()
-        {
-            return HashCode.Combine(Name, InterfaceDeclaration);
-        }
-
-        public void GetInterfaces(HashSet<LinkedInterfaceNode> interfaces)
-        {
-            if (interfaces.Contains(this))
-                return;
-
-            interfaces.Add(this);
-
-            foreach (var p in Parents)
-            {
-                p.GetInterfaces(interfaces);
-            }
-
-            if (isPartial)
-            {
-                foreach (var p in Parts)
-                {
-                    var baseList = p.BaseList?.Types;
-
-                    if (baseList == null) continue;
-
-                    foreach (var type in baseList)
-                    {
-                        if (Program.interfacesOverData.TryGetValue(type.ToString(), out var node))
-                        {
-                            node.GetInterfaces(interfaces);
-                        }
-                    }
-                }
-            }
-        }
-
-        public void GetGenericInterfaces(HashSet<LinkedGenericInterfaceNode> interfaces)
-        {
-            foreach (var p in Parents)
-            {
-                p.GetGenericInterfaces(interfaces);
-            }
-
-            if (isPartial)
-            {
-                foreach (var p in Parts)
-                {
-                    var baseList = p.BaseList?.Types;
-
-                    if (baseList == null) continue;
-
-                    foreach (var type in baseList)
-                    {
-                        if (Program.genericInterfacesOverData.TryGetValue(type.ToString(), out var node))
-                        {
-                            interfaces.Add(node);
-                        }
-                    }
-                }
-            }
-            else
-            {
-                var baseList = InterfaceDeclaration.BaseList?.Types;
-
-                if (baseList == null) return;
-
-                foreach (var type in baseList)
-                {
-                    if (Program.genericInterfacesOverData.TryGetValue(type.ToString(), out var node))
-                    {
-                        interfaces.Add(node);
-                    }
-                }
             }
         }
     }
