@@ -16,7 +16,7 @@ namespace HECSFramework.Core.Generator
         public List<ClassDeclarationSyntax> containersSolve = new List<ClassDeclarationSyntax>();
         public List<Type> commands = new List<Type>();
         public List<string> alrdyAtContext = new List<string>();
-        public const string Resolver = "Resolver";
+        public const string JSONResolver = "JSONResolver";
         public const string Cs = ".cs";
         private string ResolverContainer = "ResolverDataContainer";
         public const string BluePrint = "BluePrint";
@@ -31,10 +31,10 @@ namespace HECSFramework.Core.Generator
         public const string IReactCommand = "IReactCommand";
         public const string IReactComponentLocal = "IReactComponentLocal";
         public const string IReactComponentGlobal = "IReactComponentGlobal";
-        
+
         public const string IReactGenericGlobalComponent = "IReactGenericGlobalComponent";
         public const string IReactGenericLocalComponent = "IReactGenericLocalComponent";
-        
+
         public const string CurrentSystem = "currentSystem";
 
         public const string IReactNetworkCommandGlobal = "IReactNetworkCommandGlobal";
@@ -440,7 +440,7 @@ namespace HECSFramework.Core.Generator
             need.AddRange(structs);
             //need.AddRange(interfaces);
 
-           
+
             foreach (var c in need)
             {
                 var childNodes = c.ChildNodes();
@@ -605,7 +605,7 @@ namespace HECSFramework.Core.Generator
                 defaultConstructor.Tree.Add(new TabSimpleSyntax(3, "IsTag = false;"));
                 arguments.Add(new SimpleSyntax("bool isTag"));
 
-                defaultconstructorSignature.Add(new TabSimpleSyntax(2, $"public {type.Name + Resolver}({arguments})"));
+                defaultconstructorSignature.Add(new TabSimpleSyntax(2, $"public {type.Name + JSONResolver}({arguments})"));
                 return tree;
             }
 
@@ -618,7 +618,7 @@ namespace HECSFramework.Core.Generator
                 defaultConstructor.Add(new TabSimpleSyntax(3, $"this.{d.name} = {d.name};"));
             }
 
-            defaultconstructorSignature.Add(new TabSimpleSyntax(2, $"public {type.Name + Resolver}({arguments})"));
+            defaultconstructorSignature.Add(new TabSimpleSyntax(2, $"public {type.Name + JSONResolver}({arguments})"));
             return tree;
         }
 
@@ -645,7 +645,7 @@ namespace HECSFramework.Core.Generator
 
             return list;
         }
-      
+
 
         private ISyntax GetUniversalResolver(LinkedNode c)
         {
@@ -668,11 +668,11 @@ namespace HECSFramework.Core.Generator
             usings.AddUnique(new UsingSyntax("HECSFramework.Serialize"));
 
             tree.Add(new TabSimpleSyntax(1, "[MessagePackObject, Serializable]"));
-            tree.Add(new TabSimpleSyntax(1, $"public partial struct {name + Resolver} : IResolver<{name + Resolver},{name}>, IData"));
+            tree.Add(new TabSimpleSyntax(1, $"public partial struct {name + JSONResolver} : IJSONResolver<{name + JSONResolver},{name}>"));
             tree.Add(new LeftScopeSyntax(1));
             tree.Add(fields);
             tree.Add(new ParagraphSyntax());
-            tree.Add(new TabSimpleSyntax(2, $"public {name + Resolver} In(ref {name} {name.ToLower()})"));
+            tree.Add(new TabSimpleSyntax(2, $"public {name + JSONResolver} In(ref {name} {name.ToLower()})"));
             tree.Add(new LeftScopeSyntax(2));
             tree.Add(inFunc);
             tree.Add(new RightScopeSyntax(2));
@@ -688,52 +688,45 @@ namespace HECSFramework.Core.Generator
             var typeFields = new List<GatheredField>(128);
             List<(string type, string name)> fieldsForConstructor = new List<(string type, string name)>();
 
-            foreach (var parts in c.Parts)
+            foreach (var m in c.Members())
             {
-                foreach (var m in parts.Members)
+                var validate = IsValidField(m.MemberDeclarationSyntax);
+
+                if (!validate.valid) continue;
+
+                string type = "";
+                string fieldName = "";
+
+                var member = m.MemberDeclarationSyntax;
+
+                if (member is FieldDeclarationSyntax field)
                 {
-                    if (m is MemberDeclarationSyntax member)
+                    fieldName = field.Declaration.Variables[0].Identifier.ToString();
+                    type = field.Declaration.Type.ToString();
+                }
+
+                if (member is PropertyDeclarationSyntax property)
+                {
+                    fieldName = property.Identifier.Text;
+                    type = property.Type.ToString();
+                }
+
+                if (string.IsNullOrEmpty(type) || string.IsNullOrEmpty(fieldName))
+                    throw new Exception("we dont have type for field " + m.ToString());
+
+                if (validate.valid)
+                {
+                    if (typeFields.Any(x => x.Order == validate.Order || x.FieldName == fieldName))
+                        continue;
+
+                    typeFields.Add(new GatheredField
                     {
-                        var validate = IsValidField(member);
-
-                        if (!validate.valid) continue;
-
-
-                        //GetNamespace(member, usings);
-
-                        string type = "";
-                        string fieldName = "";
-
-                        if (member is FieldDeclarationSyntax field)
-                        {
-                            fieldName = field.Declaration.Variables[0].Identifier.ToString();
-                            type = field.Declaration.Type.ToString();
-                        }
-
-                        if (member is PropertyDeclarationSyntax property)
-                        {
-                            fieldName = property.Identifier.Text;
-                            type = property.Type.ToString();
-                        }
-
-                        if (string.IsNullOrEmpty(type) || string.IsNullOrEmpty(fieldName))
-                            throw new Exception("we dont have type for field " + m.ToString());
-
-                        if (validate.valid)
-                        {
-                            if (typeFields.Any(x => x.Order == validate.Order || x.FieldName == fieldName))
-                                continue;
-
-                            typeFields.Add(new GatheredField
-                            {
-                                Order = validate.Order,
-                                Type = type,
-                                FieldName = fieldName,
-                                ResolverName = validate.resolver,
-                                Node = member
-                            });
-                        }
-                    }
+                        Order = validate.Order,
+                        Type = type,
+                        FieldName = fieldName,
+                        ResolverName = validate.resolver,
+                        Node = member
+                    });
                 }
             }
 
@@ -742,7 +735,7 @@ namespace HECSFramework.Core.Generator
             foreach (var f in typeFields)
             {
 
-                fields.Add(new TabSimpleSyntax(2, $"[Key({f.Order})]"));
+                fields.Add(new TabSimpleSyntax(2, $"[JsonProperty({CParse.Quote}{f.FieldName}{CParse.Quote})]"));
 
                 if (string.IsNullOrEmpty(f.ResolverName))
                     fields.Add(new TabSimpleSyntax(2, $"public {f.Type} {f.FieldName};"));
@@ -772,10 +765,10 @@ namespace HECSFramework.Core.Generator
                 }
             }
 
-            //if (c.Interfaces.Any(x => x.Name == "IAfterSerializationComponent"))
-            //{
-            //    outFunc.Add(new TabSimpleSyntax(3, $"{c.Name.ToLower()}.AfterSync();"));
-            //}
+            if (c.IsAfterSerialization)
+            {
+                outFunc.Add(new TabSimpleSyntax(3, $"{c.Name.ToLower()}.AfterSync();"));
+            }
 
             ////defaultConstructor.Add(DefaultConstructor(c, fieldsForConstructor, fields, constructor));
             inFunc.Add(new TabSimpleSyntax(3, "return this;"));
@@ -798,97 +791,6 @@ namespace HECSFramework.Core.Generator
             return tree;
         }
 
-
-        #endregion
-
-        #region CommandsResolvers
-
-        /// <summary>
-        /// we generate here commands map and short ids staff
-        /// </summary>
-        /// <param name="commands"></param>
-        /// <returns></returns>
-        public string GenerateNetworkCommandsAndShortIdsMap(List<StructDeclarationSyntax> commands)
-        {
-            var tree = new TreeSyntaxNode();
-            var resolvers = new TreeSyntaxNode();
-            var typeToIdDictionary = new TreeSyntaxNode();
-            var dictionaryBody = new TreeSyntaxNode();
-            var genericMethod = new TreeSyntaxNode();
-
-            tree.Add(new UsingSyntax("Commands"));
-            tree.Add(new UsingSyntax("Components"));
-            tree.Add(new UsingSyntax("System"));
-            tree.Add(new UsingSyntax("HECSFramework.Serialize"));
-            tree.Add(new UsingSyntax("System.Collections.Generic", 1));
-            tree.Add(new NameSpaceSyntax("HECSFramework.Core"));
-            tree.Add(new LeftScopeSyntax());
-            tree.Add(new TabSimpleSyntax(1, "public partial class ResolversMap"));
-            tree.Add(new LeftScopeSyntax(1));
-            tree.Add(new TabSimpleSyntax(2, "public Dictionary<int, ICommandResolver> Map = new Dictionary<int, ICommandResolver>"));
-            tree.Add(new LeftScopeSyntax(2));
-            tree.Add(resolvers);
-            tree.Add(new RightScopeSyntax(2, true));
-            tree.Add(new ParagraphSyntax());
-            tree.Add(typeToIdDictionary);
-            tree.Add(new ParagraphSyntax());
-            tree.Add(InitPartialCommandResolvers());
-            tree.Add(new RightScopeSyntax(1));
-            tree.Add(new RightScopeSyntax(0));
-
-            foreach (var t in commands)
-                resolvers.Add(GetCommandResolver(t));
-
-            typeToIdDictionary.Add(new TabSimpleSyntax(2, "public Dictionary<Type, int> CommandsIDs = new Dictionary<Type, int>"));
-            typeToIdDictionary.Add(new LeftScopeSyntax(2));
-            typeToIdDictionary.Add(dictionaryBody);
-            typeToIdDictionary.Add(new RightScopeSyntax(2, true));
-
-            for (int i = 0; i < commands.Count; i++)
-            {
-                var t = commands[i];
-                dictionaryBody.Add(GetCommandMethod(t));
-
-                //if (i < commands.Count - 1)
-                //    dictionaryBody.Add(new ParagraphSyntax());
-            }
-
-            return tree.ToString();
-        }
-
-
-        /// <summary>
-        /// here we codogen all around shortIDs
-        /// </summary>
-        /// <returns></returns>
-
-        private ISyntax GetCommandMethod(StructDeclarationSyntax command)
-        {
-            var tree = new TreeSyntaxNode();
-            tree.Add(new TabSimpleSyntax(3, $"{{typeof({command.Identifier.ValueText}), {IndexGenerator.GetIndexForType(command.Identifier.ValueText)}}},"));
-            return tree;
-        }
-
-        private ISyntax InitPartialCommandResolvers()
-        {
-            var tree = new TreeSyntaxNode();
-            tree.Add(new TabSimpleSyntax(2, "partial void InitPartialCommandResolvers()"));
-            tree.Add(new LeftScopeSyntax(2));
-            tree.Add(new TabSimpleSyntax(3, "hashTypeToResolver = Map;"));
-            tree.Add(new TabSimpleSyntax(3, "typeTohash = CommandsIDs;"));
-
-            ///this part of short ids, u should check GetShortIdPart()
-            tree.Add(new TabSimpleSyntax(3, "InitShortIds();"));
-            tree.Add(new RightScopeSyntax(2));
-            tree.Add(new ParagraphSyntax());
-
-            return tree;
-        }
-
-        private ISyntax GetCommandResolver(StructDeclarationSyntax type)
-        {
-            return new TabSimpleSyntax(3, $"{{{IndexGenerator.GetIndexForType(type.Identifier.ValueText)}, new CommandResolver<{type.Identifier.ValueText}>()}},");
-        }
 
         #endregion
     }

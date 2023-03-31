@@ -36,6 +36,8 @@ namespace RoslynHECS
 
         public const string JSONHECSSerialize = "JSONHECSSerialize";
         public const string JSONHECSFieldByResolver = "JSONHECSFieldByResolver";
+        public const string IAfterSerializationComponent = "IAfterSerializationComponent";
+        public const string IBeforeSerializationComponent = "IBeforeSerializationComponent";
 
         private static List<FileInfo> files ;
 
@@ -352,6 +354,9 @@ namespace RoslynHECS
         public bool IsAbstract;
         public bool IsPartial;
 
+        public bool IsAfterSerialization;
+        public bool IsBeforeSerialization;
+
         //we hold here info from all parts
         public HashSet<MemberInfoWithAttributes> FieldsWithAttibutes = new HashSet<MemberInfoWithAttributes>(8);
 
@@ -410,12 +415,47 @@ namespace RoslynHECS
             }
         }
 
+        private void SetSerializationBools()
+        {
+            if (Parent != null)
+            {
+                if (Parent.IsAfterSerialization)
+                    IsAfterSerialization = true;
+
+                if (Parent.IsBeforeSerialization)
+                    IsBeforeSerialization = true;
+            }
+
+            foreach (var p in Parts)
+            {
+                if (p.BaseList != null)
+                {
+                    foreach (var bn in p.BaseList.Types)
+                    {
+                        if (bn.Type.ToString() == Program.IAfterSerializationComponent)
+                        {
+                            IsAfterSerialization = true;
+                        }
+
+                        if (bn.Type.ToString() == Program.IBeforeSerializationComponent)
+                        {
+                            IsBeforeSerialization = true;
+                        }
+                    }
+                }
+            }
+        }
+
         public LinkedNode (StructDeclarationSyntax structDeclarationSyntax)
         {
             IsStruct = true;
             IsPartial = structDeclarationSyntax.IsKind(SyntaxKind.PartialKeyword);
         }
 
+        /// <summary>
+        /// all member with fields on parents and parts 
+        /// </summary>
+        /// <returns></returns>
         public IEnumerable<MemberInfoWithAttributes> Members()
         {
             foreach (var m in FieldsWithAttibutes)
