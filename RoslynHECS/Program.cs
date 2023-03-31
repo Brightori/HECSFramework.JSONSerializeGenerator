@@ -23,18 +23,19 @@ namespace RoslynHECS
 
         //resolvers collection
         public static Dictionary<string, ResolverData> customHecsResolvers = new Dictionary<string, ResolverData>(512);
-        public static Dictionary<string, LinkedNode> linkedNodes = new Dictionary<string, LinkedNode>(512);
+        public static Dictionary<string, LinkedNode> LinkedNodes = new Dictionary<string, LinkedNode>(512);
         public static Dictionary<string, ClassDeclarationSyntax> nameToClassDeclaration = new Dictionary<string, ClassDeclarationSyntax>(512);
 
         public static List<ClassDeclarationSyntax> classes;
         public static List<StructDeclarationSyntax> structs;
 
-        public static string ScriptsPath = @"D:\Develop\UniverseClient\Assets\";
-        public static string HECSGenerated = @"D:\Develop\UniverseClient\Assets\Scripts\HECSGenerated\";
+        public static string ScriptsPath = @"D:\UniverseClientCorp\Assets\";
+        public static string HECSGenerated = @"D:\UniverseClientCorp\Assets\Scripts\HECSGenerated\";
         //public static string ScriptsPath = @"E:\repos\Kefir\minilife-server\MinilifeServer\";
         //public static string HECSGenerated = @"E:\repos\Kefir\minilife-server\MinilifeServer\HECSGenerated\";
 
-        private const string JSONResolveAttribute = "JSONResolve";
+        public const string JSONHECSSerialize = "JSONHECSSerialize";
+        public const string JSONHECSFieldByResolver = "JSONHECSFieldByResolver";
 
         private static List<FileInfo> files ;
 
@@ -183,7 +184,7 @@ namespace RoslynHECS
                 {
                     foreach (var attr in a.Attributes)
                     {
-                        if (attr.Name.ToString() == JSONResolveAttribute)
+                        if (attr.Name.ToString() == JSONHECSSerialize)
                         {
                             var arguments = attr.ArgumentList.Arguments;
 
@@ -223,13 +224,16 @@ namespace RoslynHECS
             //we gather here classes 
             foreach (var c in classes)
             {
+                if (LinkedNodes.ContainsKey(c.Identifier.ValueText))
+                    continue;
+
                 if (c.AttributeLists.Count > 0)
                 {
                     foreach (var a in c.AttributeLists)
                     {
                         foreach (var attr in a.Attributes)
                         {
-                            if (attr.ToString() == JSONResolveAttribute)
+                            if (attr.ToString() == JSONHECSSerialize)
                             {
                                 var linkedNode = new LinkedNode(c);
                             }
@@ -348,7 +352,8 @@ namespace RoslynHECS
         public bool IsAbstract;
         public bool IsPartial;
 
-        public HashSet<MemberDeclarationSyntax> fieldsWithAttibutes = new HashSet<MemberDeclarationSyntax>(8);
+        //we hold here info from all parts
+        public HashSet<MemberInfoWithAttributes> FieldsWithAttibutes = new HashSet<MemberInfoWithAttributes>(8);
 
         public LinkedNode(ClassDeclarationSyntax classDeclarationSyntax)
         {
@@ -356,6 +361,8 @@ namespace RoslynHECS
             IsPartial = classDeclarationSyntax.Modifiers.Any(x=> x.IsKind(SyntaxKind.PartialKeyword));
             Type = classDeclarationSyntax;
             Name = classDeclarationSyntax.Identifier.ValueText;
+
+            Parts.Add(classDeclarationSyntax);
 
             if (IsPartial)
             {
@@ -370,13 +377,35 @@ namespace RoslynHECS
 
             if (SyntaxHelper.TryGetParent(classDeclarationSyntax, out var parent, out var parentClass))
             {
-                if (Program.linkedNodes.TryGetValue(parent, out var linkedNode))
+                if (Program.LinkedNodes.TryGetValue(parent, out var linkedNode))
                 {
                     Parent = linkedNode;
                 }
                 else
                 {
                     Parent = new LinkedNode(parentClass);
+                }
+            }
+
+            foreach (var p in Parts)
+            {
+                foreach (var m in p.Members)
+                {
+                    if (m.AttributeLists.Count > 0)
+                    {
+                        var info = new MemberInfoWithAttributes();
+                        info.MemberDeclarationSyntax = m;
+
+                        foreach (var attr in m.AttributeLists)
+                        {
+                            foreach (var a in attr.Attributes)
+                            {
+                                info.Attributes.Add(a);
+                            }
+                        }
+
+                        FieldsWithAttibutes.Add(info);
+                    }
                 }
             }
         }
@@ -386,5 +415,23 @@ namespace RoslynHECS
             IsStruct = true;
             IsPartial = structDeclarationSyntax.IsKind(SyntaxKind.PartialKeyword);
         }
+
+        public IEnumerable<MemberInfoWithAttributes> Members()
+        {
+            foreach (var m in FieldsWithAttibutes)
+                yield return m;
+
+            if (Parent != null)
+            {
+                foreach (var m in Parent.Members())
+                    yield return m; 
+            }
+        }
     } 
+
+    public class MemberInfoWithAttributes
+    {
+        public HashSet<AttributeSyntax> Attributes = new HashSet<AttributeSyntax>(2);
+        public MemberDeclarationSyntax MemberDeclarationSyntax;
+    }
 }

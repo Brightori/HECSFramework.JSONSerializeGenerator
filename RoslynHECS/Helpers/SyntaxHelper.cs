@@ -23,7 +23,6 @@ namespace RoslynHECS.Helpers
             return false;
         }
 
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string GetType(MemberDeclarationSyntax memberDeclarationSyntax)
         {
