@@ -36,7 +36,7 @@ namespace RoslynHECS
         public const string JSONHECSFieldByResolver = "JSONHECSFieldByResolver";
         public const string IAfterSerializationComponent = "IAfterSerializationComponent";
         public const string IBeforeSerializationComponent = "IBeforeSerializationComponent";
-        public const string JsonFolder = "JSONResolvers";
+        public const string JsonFolder = "/JSONResolvers/";
 
         private static List<FileInfo> files ;
 
@@ -123,8 +123,10 @@ namespace RoslynHECS
 
             foreach (var resolver in list)
             {
-                SaveToFile($"{"/"}"+resolver.name + "Resolver" + ".cs", resolver.data, HECSGenerated + Program.JsonFolder);
+                SaveToFile(resolver.name + "Resolver" + ".cs", resolver.data, HECSGenerated + Program.JsonFolder);
             }
+
+            SaveToFile("JSONResolverMap.cs", processGeneration.GetJSONProvidersMaps().ToString(), HECSGenerated);
 
             //SaveToFile(TypeProvider, processGeneration.GenerateTypesMapRoslyn(), HECSGenerated);
             //SaveToFile(MaskProvider, processGeneration.GenerateMaskProviderRoslyn(), HECSGenerated);

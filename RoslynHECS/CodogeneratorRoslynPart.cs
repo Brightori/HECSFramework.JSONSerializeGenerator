@@ -40,13 +40,61 @@ namespace HECSFramework.Core.Generator
         public const string IReactNetworkCommandGlobal = "IReactNetworkCommandGlobal";
         public const string IReactNetworkCommandLocal = "IReactNetworkCommandLocal";
 
-        private HashSet<ClassDeclarationSyntax> systemCasheParentsAndPartial = new HashSet<ClassDeclarationSyntax>(64);
 
         #region JSONResolverMap
 
         public ISyntax GetJSONProvidersMaps()
         {
             var tree = new TreeSyntaxNode();
+            var usings = new TreeSyntaxNode();
+            var initModule = new TreeSyntaxNode();
+
+            tree.Add(usings);
+            tree.Add(new UsingSyntax("System"));
+            tree.Add(new UsingSyntax("HECSFramework.Serialize"));
+            tree.Add(new UsingSyntax("System.Collections.Generic", 1));
+
+            tree.Add(new NameSpaceSyntax("HECSFramework.Core"));
+            tree.Add(new LeftScopeSyntax());
+
+            tree.Add(new TabSimpleSyntax(1, "public partial class ResolversMap"));
+            
+            tree.Add(new LeftScopeSyntax(1));
+
+            tree.Add(GetDictionaryHelper.GetDictionaryMethod("GetTypeToJSONResolver", "Type", "JSONSerializationProvider", 2, out var bodyGetTypeToprovider));
+            tree.Add(new ParagraphSyntax());
+
+            tree.Add(GetDictionaryHelper.GetDictionaryMethod("GetTypeCodeToJSONResolver", "int", "JSONSerializationProvider", 2, out var bodyTypeIndexToProvider));
+            tree.Add(new ParagraphSyntax());   
+            
+            tree.Add(GetDictionaryHelper.GetDictionaryMethod("GetTypeIndexToTypeJSON", "int", "Type", 2, out var bodyTypeIndexToType));
+            tree.Add(new ParagraphSyntax()); 
+            
+            tree.Add(GetDictionaryHelper.GetDictionaryMethod("GetTypeToIndexJSON", "Type", "int", 2, out var bodyTypeToTypeIndex));
+            tree.Add(new ParagraphSyntax());
+
+            tree.Add(new TabSimpleSyntax(2, "partial void JSONModuleInit()"));
+            tree.Add(new LeftScopeSyntax(2));
+
+            tree.Add(new TabSimpleSyntax(3, "typeToJSONResolver = GetTypeToJSONResolver();"));
+            tree.Add(new TabSimpleSyntax(3, "typeCodeToJSONResolver = GetTypeCodeToJSONResolver();"));
+            tree.Add(new TabSimpleSyntax(3, "getTypeIndexToTypeJSON = GetTypeIndexToTypeJSON();"));
+            tree.Add(new TabSimpleSyntax(3, "typeToIndexJSON = GetTypeToIndexJSON();"));
+
+            tree.Add(new RightScopeSyntax(2));
+            tree.Add(new RightScopeSyntax(1));
+            tree.Add(new RightScopeSyntax());
+
+            foreach (var l in Program.LinkedNodes)
+            {
+                if (l.Value.IsAbstract)
+                    continue;
+
+                bodyGetTypeToprovider.AddUnique(GetDictionaryHelper.DictionaryBodyRecord(4, $"typeof({l.Value.Name})", $"new JSONResolverProvider<{l.Value.Name},{l.Value.Name+JSONResolver}>()"));
+                bodyTypeIndexToProvider.AddUnique(GetDictionaryHelper.DictionaryBodyRecord(4, $"{IndexGenerator.GenerateIndex(l.Value.Name)}", $"new JSONResolverProvider<{l.Value.Name},{l.Value.Name+JSONResolver}>()"));
+                bodyTypeIndexToType.AddUnique(GetDictionaryHelper.DictionaryBodyRecord(4, $"{IndexGenerator.GenerateIndex(l.Value.Name)}", $"typeof({l.Value.Name})"));
+                bodyTypeToTypeIndex.AddUnique(GetDictionaryHelper.DictionaryBodyRecord(4, $"typeof({l.Value.Name})", $"{IndexGenerator.GenerateIndex(l.Value.Name)}"));
+            }
 
             return tree;
         }
@@ -653,6 +701,9 @@ namespace HECSFramework.Core.Generator
 
             foreach (var l in Program.LinkedNodes)
             {
+                if (l.Value.IsAbstract)
+                    continue;
+
                 list.Add((l.Value.Name, GetUniversalResolver(l.Value).ToString()));
             }
 
