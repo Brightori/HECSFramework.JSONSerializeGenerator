@@ -1,8 +1,11 @@
 ﻿using System.Linq;
 using System.Runtime.CompilerServices;
+using HECSFramework.Core;
 using HECSFramework.Core.Generator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.VisualBasic.Syntax;
+using FieldDeclarationSyntax = Microsoft.CodeAnalysis.CSharp.Syntax.FieldDeclarationSyntax;
 
 namespace RoslynHECS.Helpers
 {
@@ -52,6 +55,50 @@ namespace RoslynHECS.Helpers
                 return;
 
             syntax.Tree.Add(add);
+        }
+
+        public static string GetSpecialResolverName(this MemberInfoWithAttributes memberDeclarationSyntax)
+        {
+            var jsonResolver = memberDeclarationSyntax.Attributes.FirstOrDefault(x => x.Name.ToString() == "JSONHECSFieldByResolver");
+            string resolver = string.Empty;
+
+            if (jsonResolver != null)
+            {
+                var data = jsonResolver.ArgumentList.Arguments.First().ToString();
+                data = data.Replace("typeof(", "");
+                data = data.Replace(")", "");
+                resolver = data;
+            }
+
+            return resolver;
+        }
+
+        public static string GetMemberType(this MemberDeclarationSyntax memberDeclarationSyntax)
+        {
+            if (memberDeclarationSyntax is FieldDeclarationSyntax field)
+            {
+                return field.Declaration.Type.ToString();
+            }
+            else if (memberDeclarationSyntax is PropertyDeclarationSyntax property)
+            {
+                return property.Type.ToString();
+            }
+
+            return default;
+        }
+
+        public static string GetMemberFieldName(this MemberDeclarationSyntax memberDeclarationSyntax)
+        {
+            if (memberDeclarationSyntax is FieldDeclarationSyntax field)
+            {
+                return field.Declaration.Variables[0].ToString();
+            }
+            else if (memberDeclarationSyntax is PropertyDeclarationSyntax property)
+            {
+                return property.Identifier.ValueText;
+            }
+
+            return default;
         }
     }
 }

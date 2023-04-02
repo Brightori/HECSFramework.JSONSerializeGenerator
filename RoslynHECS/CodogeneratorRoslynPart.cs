@@ -251,7 +251,7 @@ namespace HECSFramework.Core.Generator
         //    }
         //}
 
-        public ISyntax GetPartialClassForSerializePrivateFields(ClassDeclarationSyntax classDeclarationSyntax, string resolver, out ISyntax saveBody, out ISyntax loadBody)
+        public ISyntax GetPartialClassForSerializePrivateFields(TypeDeclarationSyntax classDeclarationSyntax, string resolver, out ISyntax saveBody, out ISyntax loadBody)
         {
             var classSyntax = new TreeSyntaxNode();
 
@@ -260,7 +260,7 @@ namespace HECSFramework.Core.Generator
 
             classSyntax.Add(new TabSimpleSyntax(1,
                 $"public partial class {classDeclarationSyntax.Identifier.ValueText} : " +
-                $"ISaveToResolver<{resolver}>, ILoadFromResolver<{resolver}>"));
+                $"ISaveJSONToResolver<{resolver}>, ILoadFromJSONResolver<{resolver}>"));
 
             classSyntax.Add(new LeftScopeSyntax(1));
             classSyntax.Add(GetSaveResolverBody(resolver, out saveBody));
@@ -276,7 +276,7 @@ namespace HECSFramework.Core.Generator
             var tree = new TreeSyntaxNode();
             body = new TreeSyntaxNode();
 
-            tree.Add(new TabSimpleSyntax(2, $"public void Save(ref {resolver} resolver)"));
+            tree.Add(new TabSimpleSyntax(2, $"public void SaveToJSONResolver(ref {resolver} resolver)"));
             tree.Add(new LeftScopeSyntax(2));
             tree.Add(body);
             tree.Add(new RightScopeSyntax(2));
@@ -289,7 +289,7 @@ namespace HECSFramework.Core.Generator
             var tree = new TreeSyntaxNode();
             body = new TreeSyntaxNode();
 
-            tree.Add(new TabSimpleSyntax(2, $"public void Load(ref {resolver} resolver)"));
+            tree.Add(new TabSimpleSyntax(2, $"public void LoadFromJSONResolver(ref {resolver} resolver)"));
             tree.Add(new LeftScopeSyntax(2));
             tree.Add(body);
             tree.Add(new RightScopeSyntax(2));
@@ -710,7 +710,7 @@ namespace HECSFramework.Core.Generator
             return list;
         }
 
-        private ISyntax GetUniversalResolver(LinkedNode c)
+        private ISyntax GetUniversalResolver(LinkedNode linkedNode)
         {
 
             var tree = new TreeSyntaxNode();
@@ -721,7 +721,7 @@ namespace HECSFramework.Core.Generator
             var outFunc = new TreeSyntaxNode();
             var out2EntityFunc = new TreeSyntaxNode();
 
-            var name = c.Name;
+            var name = linkedNode.Name;
 
             tree.Add(usings);
 
@@ -751,7 +751,7 @@ namespace HECSFramework.Core.Generator
             var typeFields = new List<GatheredField>(128);
             List<(string type, string name)> fieldsForConstructor = new List<(string type, string name)>();
 
-            foreach (var m in c.Members())
+            foreach (var m in linkedNode.Members())
             {
                 var validate = IsValidField(m);
 
@@ -809,51 +809,69 @@ namespace HECSFramework.Core.Generator
 
                 if (f.Node is PropertyDeclarationSyntax declarationSyntax && declarationSyntax.Type.ToString().Contains("ReactiveValue"))
                 {
-                    inFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName} = {c.Name.ToLower()}.{f.FieldName}.CurrentValue;"));
-                    outFunc.Add(new TabSimpleSyntax(3, $"{c.Name.ToLower()}.{f.FieldName}.CurrentValue = this.{f.FieldName};"));
+                    inFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName} = {linkedNode.Name.ToLower()}.{f.FieldName}.CurrentValue;"));
+                    outFunc.Add(new TabSimpleSyntax(3, $"{linkedNode.Name.ToLower()}.{f.FieldName}.CurrentValue = this.{f.FieldName};"));
                 }
                 else
                 {
                     if (string.IsNullOrEmpty(f.ResolverName))
                     {
-                        inFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName} = {c.Name.ToLower()}.{f.FieldName};"));
-                        outFunc.Add(new TabSimpleSyntax(3, $"{c.Name.ToLower()}.{f.FieldName} = this.{f.FieldName};"));
+                        inFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName} = {linkedNode.Name.ToLower()}.{f.FieldName};"));
+                        outFunc.Add(new TabSimpleSyntax(3, $"{linkedNode.Name.ToLower()}.{f.FieldName} = this.{f.FieldName};"));
                     }
                     else
                     {
                         usings.AddUnique(new UsingSyntax("HECSFramework.Serialize"));
-                        inFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName} = new {f.ResolverName}().In(ref {c.Name.ToLower()}.{f.FieldName});"));
-                        outFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName}.Out(ref {c.Name.ToLower()}.{f.FieldName});"));
+                        inFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName} = new {f.ResolverName}().In(ref {linkedNode.Name.ToLower()}.{f.FieldName});"));
+                        outFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName}.Out(ref {linkedNode.Name.ToLower()}.{f.FieldName});"));
                     }
                 }
             }
 
-            if (c.IsAfterSerialization)
+            if (linkedNode.IsAfterSerialization)
             {
-                outFunc.Add(new TabSimpleSyntax(3, $"{c.Name.ToLower()}.AfterSync();"));
+                outFunc.Add(new TabSimpleSyntax(3, $"{linkedNode.Name.ToLower()}.AfterSync();"));
             }
 
             ////defaultConstructor.Add(DefaultConstructor(c, fieldsForConstructor, fields, constructor));
             inFunc.Add(new TabSimpleSyntax(3, "return this;"));
 
             usings.Tree.Add(new ParagraphSyntax());
+
+            if (linkedNode.Members().Any(x=> x.IsPrivate && x.IsHECSSerializeField))
+            {
+
+                tree.AddUnique(new ParagraphSyntax());
+                tree.Add(GetPartialClassForSerializePrivateFields(linkedNode.Type,
+                    name + JSONResolver, out var saveBody, out var loadBody));
+
+                foreach (var m in linkedNode.Members())
+                {
+                    if (m.IsPrivate && m.IsHECSSerializeField)
+                    {
+                        var specialResolver = m.GetSpecialResolverName();
+                        var fieldName = m.MemberDeclarationSyntax.GetMemberFieldName();
+
+                        if (!string.IsNullOrEmpty(specialResolver))
+                        {
+                            
+
+                            fields.Add(new TabSimpleSyntax(2, $"public {specialResolver} {m.MemberDeclarationSyntax.GetMemberFieldName()};"));
+                            saveBody.AddUnique(new TabSimpleSyntax(3, $"this.{specialResolver}.{fieldName} = new {specialResolver}().In(ref {fieldName});"));
+                            loadBody.AddUnique(new TabSimpleSyntax(3, $"this.{specialResolver}.{fieldName}.Out(ref {fieldName});"));
+                        }
+                        else
+                        {
+                            fields.Add(new TabSimpleSyntax(2, $"public {m.MemberDeclarationSyntax.GetMemberType()} {m.MemberDeclarationSyntax.GetMemberFieldName()};"));
+                            saveBody.AddUnique(new TabSimpleSyntax(3, $"{resolv}.{fieldName} = {fieldName};"));
+                            loadBody.AddUnique(new TabSimpleSyntax(3, $"{m.GatheredField.FieldName} = {Resolver.ToLower()}.{m.GatheredField.FieldName};"));
+                        }
+                    }
+                }
+            }
+
             return tree;
         }
-
-        private ISyntax GetCustomProvidersPartialInitMethod()
-        {
-            var tree = new TreeSyntaxNode();
-
-            tree.Add(new TabSimpleSyntax(2, "partial void InitCustomResolvers()"));
-            tree.Add(new LeftScopeSyntax(2));
-            tree.Add(new TabSimpleSyntax(3, "typeToCustomResolver = GetTypeToCustomResolver();"));
-            tree.Add(new TabSimpleSyntax(3, "typeCodeToCustomResolver = GetTypeCodeToCustomResolver();"));
-            tree.Add(new TabSimpleSyntax(3, "getTypeIndexToType = GetTypeIndexToType();"));
-            tree.Add(new RightScopeSyntax(2));
-
-            return tree;
-        }
-
 
         #endregion
     }

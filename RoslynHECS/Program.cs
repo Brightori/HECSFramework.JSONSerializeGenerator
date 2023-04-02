@@ -38,7 +38,7 @@ namespace RoslynHECS
         public const string IBeforeSerializationComponent = "IBeforeSerializationComponent";
         public const string JsonFolder = "/JSONResolvers/";
 
-        private static List<FileInfo> files ;
+        private static List<FileInfo> files;
 
         private static FileInfo alrdyHaveCommandMap;
         public static CSharpCompilation Compilation;
@@ -352,7 +352,7 @@ namespace RoslynHECS
         }
     }
 
-    public class  LinkedNode
+    public class LinkedNode
     {
         public LinkedNode Parent;
         public TypeDeclarationSyntax Type;
@@ -371,8 +371,8 @@ namespace RoslynHECS
 
         public LinkedNode(ClassDeclarationSyntax classDeclarationSyntax)
         {
-            IsAbstract = classDeclarationSyntax.Modifiers.Any(x => x.IsKind(SyntaxKind.AbstractKeyword)); 
-            IsPartial = classDeclarationSyntax.Modifiers.Any(x=> x.IsKind(SyntaxKind.PartialKeyword));
+            IsAbstract = classDeclarationSyntax.Modifiers.Any(x => x.IsKind(SyntaxKind.AbstractKeyword));
+            IsPartial = classDeclarationSyntax.Modifiers.Any(x => x.IsKind(SyntaxKind.PartialKeyword));
             Type = classDeclarationSyntax;
             Name = classDeclarationSyntax.Identifier.ValueText;
 
@@ -407,17 +407,7 @@ namespace RoslynHECS
                 {
                     if (m.AttributeLists.Count > 0)
                     {
-                        var info = new MemberInfoWithAttributes();
-                        info.MemberDeclarationSyntax = m;
-
-                        foreach (var attr in m.AttributeLists)
-                        {
-                            foreach (var a in attr.Attributes)
-                            {
-                                info.Attributes.Add(a);
-                            }
-                        }
-
+                        var info = new MemberInfoWithAttributes(m);
                         FieldsWithAttibutes.Add(info);
                     }
                 }
@@ -455,7 +445,7 @@ namespace RoslynHECS
             }
         }
 
-        public LinkedNode (StructDeclarationSyntax structDeclarationSyntax)
+        public LinkedNode(StructDeclarationSyntax structDeclarationSyntax)
         {
             IsStruct = true;
             IsPartial = structDeclarationSyntax.IsKind(SyntaxKind.PartialKeyword);
@@ -473,14 +463,33 @@ namespace RoslynHECS
             if (Parent != null)
             {
                 foreach (var m in Parent.Members())
-                    yield return m; 
+                    yield return m;
             }
         }
-    } 
+    }
 
     public class MemberInfoWithAttributes
     {
         public HashSet<AttributeSyntax> Attributes = new HashSet<AttributeSyntax>(2);
         public MemberDeclarationSyntax MemberDeclarationSyntax;
+
+        public bool IsPrivate { get; private set; }
+        public bool IsHECSSerializeField { get; private set; }
+
+        public MemberInfoWithAttributes(MemberDeclarationSyntax memberDeclarationSyntax)
+        {
+
+            foreach (var attr in memberDeclarationSyntax.AttributeLists)
+            {
+                foreach (var a in attr.Attributes)
+                {
+                    Attributes.Add(a);
+                }
+            }
+
+            IsPrivate = memberDeclarationSyntax.Modifiers.Any(x => x.IsKind(SyntaxKind.ProtectedKeyword) || x.IsKind(SyntaxKind.PrivateKeyword));
+            IsHECSSerializeField = Attributes.Any(x => x.Name.ToString() == "Field");
+            MemberDeclarationSyntax = memberDeclarationSyntax;
+        }
     }
 }
