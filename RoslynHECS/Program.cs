@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using HECSFramework.Core.Generator;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
@@ -11,7 +10,6 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
 using RoslynHECS.DataTypes;
 using RoslynHECS.Helpers;
-using static HECSFramework.Core.Generator.CodeGenerator;
 using ClassDeclarationSyntax = Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax;
 using SyntaxNode = Microsoft.CodeAnalysis.SyntaxNode;
 
@@ -29,8 +27,8 @@ namespace RoslynHECS
         public static List<ClassDeclarationSyntax> classes;
         public static List<StructDeclarationSyntax> structs;
 
-        public static string ScriptsPath = @"D:\UniverseClientCorp\Assets\";
-        public static string HECSGenerated = @"D:\UniverseClientCorp\Assets\Scripts\HECSGenerated\";
+        public static string ScriptsPath = @"D:\Develop\ZombieWar\Assets\";
+        public static string HECSGenerated = @"D:\Develop\ZombieWar\Assets\Scripts\HECSGenerated\";
         //public static string ScriptsPath = @"E:\repos\Kefir\minilife-server\MinilifeServer\";
         //public static string HECSGenerated = @"E:\repos\Kefir\minilife-server\MinilifeServer\HECSGenerated\";
 
@@ -38,6 +36,7 @@ namespace RoslynHECS
         public const string JSONHECSFieldByResolver = "JSONHECSFieldByResolver";
         public const string IAfterSerializationComponent = "IAfterSerializationComponent";
         public const string IBeforeSerializationComponent = "IBeforeSerializationComponent";
+        public const string JsonFolder = "JSONResolvers";
 
         private static List<FileInfo> files ;
 
@@ -120,6 +119,13 @@ namespace RoslynHECS
         private static void SaveFiles()
         {
             var processGeneration = new CodeGenerator();
+            var list = processGeneration.JSONResolvers();
+
+            foreach (var resolver in list)
+            {
+                SaveToFile($"{"/"}"+resolver.name + "Resolver" + ".cs", resolver.data, HECSGenerated + Program.JsonFolder);
+            }
+
             //SaveToFile(TypeProvider, processGeneration.GenerateTypesMapRoslyn(), HECSGenerated);
             //SaveToFile(MaskProvider, processGeneration.GenerateMaskProviderRoslyn(), HECSGenerated);
             //SaveToFile(SystemBindings, processGeneration.GetSystemBindsByRoslyn(), HECSGenerated);
@@ -238,6 +244,7 @@ namespace RoslynHECS
                             if (attr.ToString() == JSONHECSSerialize)
                             {
                                 var linkedNode = new LinkedNode(c);
+                                LinkedNodes.TryAdd(linkedNode.Name, linkedNode);
                             }
                         }
                     }

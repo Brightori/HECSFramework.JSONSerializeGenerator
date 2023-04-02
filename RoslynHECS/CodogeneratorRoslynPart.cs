@@ -42,11 +42,22 @@ namespace HECSFramework.Core.Generator
 
         private HashSet<ClassDeclarationSyntax> systemCasheParentsAndPartial = new HashSet<ClassDeclarationSyntax>(64);
 
+        #region JSONResolverMap
+
+        public ISyntax GetJSONProvidersMaps()
+        {
+            var tree = new TreeSyntaxNode();
+
+            return tree;
+        }
+
+        #endregion
+
         #region Resolvers
 
-        public (bool valid, int Order, string resolver) IsValidField(MemberDeclarationSyntax fieldDeclarationSyntax)
+        public (bool valid, int Order, string resolver) IsValidField(MemberInfoWithAttributes fieldDeclarationSyntax)
         {
-            if (fieldDeclarationSyntax is PropertyDeclarationSyntax property)
+            if (fieldDeclarationSyntax.MemberDeclarationSyntax is PropertyDeclarationSyntax property)
             {
                 if (property.AccessorList == null)
                     return (false, -1, string.Empty);
@@ -57,10 +68,10 @@ namespace HECSFramework.Core.Generator
                     return (false, -1, string.Empty);
             }
 
-            foreach (var a in fieldDeclarationSyntax.AttributeLists.SelectMany(x => x.Attributes).ToArray())
+            foreach (var a in fieldDeclarationSyntax.Attributes)
             {
                 //todo "разобраться аккуратно с аттрибутами поля"
-                if (a.Name.ToString() == ("Field") && fieldDeclarationSyntax.Modifiers.ToString().Contains("public"))
+                if (a.Name.ToString() == ("Field") && fieldDeclarationSyntax.MemberDeclarationSyntax.Modifiers.ToString().Contains("public"))
                 {
                     if (a.ArgumentList == null)
                         continue;
@@ -69,9 +80,11 @@ namespace HECSFramework.Core.Generator
                     var arguments = a.ArgumentList.Arguments.ToArray();
                     var intValue = int.Parse(arguments[0].ToString());
 
-                    if (arguments.Length > 1)
+                    var jsonResolver = fieldDeclarationSyntax.Attributes.FirstOrDefault(x => x.Name.ToString() == "JSONHECSFieldByResolver");
+
+                    if (jsonResolver != null)
                     {
-                        var data = arguments[1].ToString();
+                        var data = jsonResolver.ArgumentList.Arguments.First().ToString();
                         data = data.Replace("typeof(", "");
                         data = data.Replace(")", "");
                         resolver = data;
@@ -646,7 +659,6 @@ namespace HECSFramework.Core.Generator
             return list;
         }
 
-
         private ISyntax GetUniversalResolver(LinkedNode c)
         {
 
@@ -667,8 +679,8 @@ namespace HECSFramework.Core.Generator
             usings.AddUnique(new UsingSyntax("Newtonsoft.Json"));
             usings.AddUnique(new UsingSyntax("HECSFramework.Serialize"));
 
-            tree.Add(new TabSimpleSyntax(1, "[MessagePackObject, Serializable]"));
-            tree.Add(new TabSimpleSyntax(1, $"public partial struct {name + JSONResolver} : IJSONResolver<{name + JSONResolver},{name}>"));
+            tree.Add(new TabSimpleSyntax(1, "[JsonObject, Serializable]"));
+            tree.Add(new TabSimpleSyntax(1, $"public partial struct {name + JSONResolver} : IJSONResolver<{name},{name + JSONResolver}>"));
             tree.Add(new LeftScopeSyntax(1));
             tree.Add(fields);
             tree.Add(new ParagraphSyntax());
@@ -690,7 +702,7 @@ namespace HECSFramework.Core.Generator
 
             foreach (var m in c.Members())
             {
-                var validate = IsValidField(m.MemberDeclarationSyntax);
+                var validate = IsValidField(m);
 
                 if (!validate.valid) continue;
 
@@ -758,9 +770,9 @@ namespace HECSFramework.Core.Generator
                     }
                     else
                     {
-                        //AddUniqueSyntax(usings, new UsingSyntax("HECSFramework.Serialize"));
-                        //constructor.Add(new TabSimpleSyntax(3, $"this.{f.FieldName} = new {f.ResolverName}().In(ref {c.Name.ToLower()}.{f.FieldName});"));
-                        //outFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName}.Out(ref {c.Name.ToLower()}.{f.FieldName});"));
+                        usings.AddUnique(new UsingSyntax("HECSFramework.Serialize"));
+                        inFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName} = new {f.ResolverName}().In(ref {c.Name.ToLower()}.{f.FieldName});"));
+                        outFunc.Add(new TabSimpleSyntax(3, $"this.{f.FieldName}.Out(ref {c.Name.ToLower()}.{f.FieldName});"));
                     }
                 }
             }
