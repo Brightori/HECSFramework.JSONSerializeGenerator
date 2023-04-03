@@ -1,11 +1,13 @@
 ﻿using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Security.Principal;
 using HECSFramework.Core;
 using HECSFramework.Core.Generator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.VisualBasic.Syntax;
 using FieldDeclarationSyntax = Microsoft.CodeAnalysis.CSharp.Syntax.FieldDeclarationSyntax;
+using GenericNameSyntax = Microsoft.CodeAnalysis.CSharp.Syntax.GenericNameSyntax;
 
 namespace RoslynHECS.Helpers
 {
@@ -87,11 +89,30 @@ namespace RoslynHECS.Helpers
             return default;
         }
 
+        public static string GetMemberTypeName(this MemberDeclarationSyntax memberDeclarationSyntax)
+        {
+            if (memberDeclarationSyntax is FieldDeclarationSyntax field)
+            {
+                if (field.Declaration.Type is GenericNameSyntax nameSyntax)
+                {
+                    return nameSyntax.Identifier.Text;
+                }
+
+                return field.Declaration.Type.ToString();
+            }
+            else if (memberDeclarationSyntax is PropertyDeclarationSyntax property)
+            {
+                return property.Type.ToString();
+            }
+
+            return default;
+        }
+
         public static string GetMemberFieldName(this MemberDeclarationSyntax memberDeclarationSyntax)
         {
             if (memberDeclarationSyntax is FieldDeclarationSyntax field)
             {
-                return field.Declaration.Variables[0].ToString();
+                return field.Declaration.Variables[0].Identifier.Text;
             }
             else if (memberDeclarationSyntax is PropertyDeclarationSyntax property)
             {

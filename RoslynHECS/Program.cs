@@ -27,8 +27,8 @@ namespace RoslynHECS
         public static List<ClassDeclarationSyntax> classes;
         public static List<StructDeclarationSyntax> structs;
 
-        public static string ScriptsPath = @"D:\UniverseClientCorp\Assets\";
-        public static string HECSGenerated = @"D:\UniverseClientCorp\Assets\Scripts\HECSGenerated\";
+        public static string ScriptsPath = @"D:\Develop\ZombieWar\Assets\";
+        public static string HECSGenerated = @"D:\Develop\ZombieWar\Assets\Scripts\HECSGenerated\";
         //public static string ScriptsPath = @"E:\repos\Kefir\minilife-server\MinilifeServer\";
         //public static string HECSGenerated = @"E:\repos\Kefir\minilife-server\MinilifeServer\HECSGenerated\";
 
@@ -464,6 +464,28 @@ namespace RoslynHECS
             {
                 foreach (var m in Parent.Members())
                     yield return m;
+            }
+        }
+
+        public IEnumerable<BaseTypeSyntax> GetBaseTypes()
+        {
+            foreach (var p in Parts)
+            {
+                if (p.BaseList != null)
+                {
+                    foreach (var b in p.BaseList.Types)
+                    {
+                        yield return b;
+                    }
+                }
+            }
+
+            if (Parent != null)
+            {
+                foreach (var ppB in Parent.GetBaseTypes())
+                {
+                    yield return ppB;
+                }
             }
         }
     }

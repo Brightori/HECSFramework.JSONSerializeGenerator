@@ -90,6 +90,11 @@ namespace HECSFramework.Core.Generator
                 if (l.Value.IsAbstract)
                     continue;
 
+                var namespaceNode = GetNameSpace(l.Value.Type);
+
+                if (!string.IsNullOrEmpty(namespaceNode))
+                    usings.AddUnique(new UsingSyntax(namespaceNode));
+
                 bodyGetTypeToprovider.AddUnique(GetDictionaryHelper.DictionaryBodyRecord(4, $"typeof({l.Value.Name})", $"new JSONResolverProvider<{l.Value.Name},{l.Value.Name+JSONResolver}>()"));
                 bodyTypeIndexToProvider.AddUnique(GetDictionaryHelper.DictionaryBodyRecord(4, $"{IndexGenerator.GenerateIndex(l.Value.Name)}", $"new JSONResolverProvider<{l.Value.Name},{l.Value.Name+JSONResolver}>()"));
                 bodyTypeIndexToType.AddUnique(GetDictionaryHelper.DictionaryBodyRecord(4, $"{IndexGenerator.GenerateIndex(l.Value.Name)}", $"typeof({l.Value.Name})"));
@@ -751,10 +756,15 @@ namespace HECSFramework.Core.Generator
 
             tree.Add(usings);
 
+            var namespaseNeeded = GetNameSpace(linkedNode.Type);
+
             usings.AddUnique(new UsingSyntax("System"));
             usings.AddUnique(new UsingSyntax("HECSFramework.Core"));
             usings.AddUnique(new UsingSyntax("Newtonsoft.Json"));
             usings.AddUnique(new UsingSyntax("HECSFramework.Serialize"));
+            
+            if (!string.IsNullOrEmpty(namespaseNeeded))
+                usings.AddUnique(new UsingSyntax(namespaseNeeded));
 
             tree.Add(new TabSimpleSyntax(1, "[JsonObject, Serializable]"));
             tree.Add(new TabSimpleSyntax(1, $"public partial struct {name + JSONResolver} : IJSONResolver<{name},{name + JSONResolver}>"));
@@ -777,6 +787,11 @@ namespace HECSFramework.Core.Generator
             var typeFields = new List<GatheredField>(128);
             List<(string type, string name)> fieldsForConstructor = new List<(string type, string name)>();
 
+            if (linkedNode.GetBaseTypes().Any(x => x.Type.ToString() == "IBeforeSerializationComponent"))
+            {
+                inFunc.Add(new TabSimpleSyntax(3, $"{linkedNode.Name.ToLower()}.{"BeforeSync();"}"));
+            }
+
             foreach (var m in linkedNode.Members())
             {
                 var validate = IsValidField(m);
@@ -787,6 +802,13 @@ namespace HECSFramework.Core.Generator
                 string fieldName = "";
 
                 var member = m.MemberDeclarationSyntax;
+
+                var fieldType = m.MemberDeclarationSyntax.GetMemberTypeName();
+
+                if (GetNameSpaceForCollection(fieldType, out var collectionNamespace))
+                {
+                    usings.AddUnique(new UsingSyntax(collectionNamespace));
+                }
 
                 if (member is FieldDeclarationSyntax field)
                 {
@@ -879,7 +901,10 @@ namespace HECSFramework.Core.Generator
                     {
                         var specialResolver = m.GetSpecialResolverName();
                         var fieldName = m.MemberDeclarationSyntax.GetMemberFieldName();
+                        var fieldType = m.MemberDeclarationSyntax.GetMemberTypeName();
 
+                        if (GetNameSpaceForCollection(fieldType, out var namespaceNeeded))
+                            usings.AddUnique(new UsingSyntax(namespaceNeeded));
 
                         if (!string.IsNullOrEmpty(specialResolver))
                         {
@@ -908,6 +933,12 @@ namespace HECSFramework.Core.Generator
             }
 
             inFunc.Add(new TabSimpleSyntax(3, "return this;"));
+
+            if (linkedNode.GetBaseTypes().Any(x => x.Type.ToString() == "IAfterSerializationComponent"))
+            {
+                outFunc.Add(new TabSimpleSyntax(3, $"{linkedNode.Name.ToLower()}.{"AfterSync();"}"));
+            }
+
             return tree;
         }
 
