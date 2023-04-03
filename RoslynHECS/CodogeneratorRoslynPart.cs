@@ -254,9 +254,14 @@ namespace HECSFramework.Core.Generator
         public ISyntax GetPartialClassForSerializePrivateFields(TypeDeclarationSyntax classDeclarationSyntax, string resolver, out ISyntax saveBody, out ISyntax loadBody)
         {
             var classSyntax = new TreeSyntaxNode();
+            var getNamespace = GetNameSpace(classDeclarationSyntax);
 
-            classSyntax.Add(new NameSpaceSyntax("Components"));
-            classSyntax.Add(new LeftScopeSyntax());
+            if (!string.IsNullOrEmpty(getNamespace))
+            {
+                classSyntax.Add(new NameSpaceSyntax(getNamespace));
+                classSyntax.Add(new LeftScopeSyntax());
+            }
+            
 
             classSyntax.Add(new TabSimpleSyntax(1,
                 $"public partial class {classDeclarationSyntax.Identifier.ValueText} : " +
@@ -267,7 +272,10 @@ namespace HECSFramework.Core.Generator
             classSyntax.Add(new ParagraphSyntax());
             classSyntax.Add(GetLoadResolverBody(resolver, out loadBody));
             classSyntax.Add(new RightScopeSyntax(1));
-            classSyntax.Add(new RightScopeSyntax());
+
+            if (!string.IsNullOrEmpty(getNamespace))
+                classSyntax.Add(new RightScopeSyntax());
+            
             return classSyntax;
         }
 
@@ -555,6 +563,24 @@ namespace HECSFramework.Core.Generator
             return namespaceString;
         }
 
+        private string GetNameSpace(TypeDeclarationSyntax field)
+        {
+
+            var tree = field.SyntaxTree.GetRoot().ChildNodes();
+            string namespaceString = string.Empty;
+
+            foreach (var cn in tree)
+            {
+                if (cn is NamespaceDeclarationSyntax declarationSyntax)
+                {
+                    var namespaceName = declarationSyntax.Name.ToString();
+                    namespaceString = namespaceName;
+                    break;
+                }
+            }
+
+            return namespaceString;
+        }
 
         private string GetNameSpace(FieldDeclarationSyntax field)
         {
@@ -834,7 +860,7 @@ namespace HECSFramework.Core.Generator
             }
 
             ////defaultConstructor.Add(DefaultConstructor(c, fieldsForConstructor, fields, constructor));
-            inFunc.Add(new TabSimpleSyntax(3, "return this;"));
+            
 
             usings.Tree.Add(new ParagraphSyntax());
 
@@ -845,6 +871,8 @@ namespace HECSFramework.Core.Generator
                 tree.Add(GetPartialClassForSerializePrivateFields(linkedNode.Type,
                     name + JSONResolver, out var saveBody, out var loadBody));
 
+                var jsonResolverName = "resolver";
+
                 foreach (var m in linkedNode.Members())
                 {
                     if (m.IsPrivate && m.IsHECSSerializeField)
@@ -852,24 +880,34 @@ namespace HECSFramework.Core.Generator
                         var specialResolver = m.GetSpecialResolverName();
                         var fieldName = m.MemberDeclarationSyntax.GetMemberFieldName();
 
+
                         if (!string.IsNullOrEmpty(specialResolver))
                         {
-                            
-
+                            fields.Add(new TabSimpleSyntax(2, $"[JsonProperty({CParse.Quote}{fieldName}{CParse.Quote})]"));
                             fields.Add(new TabSimpleSyntax(2, $"public {specialResolver} {m.MemberDeclarationSyntax.GetMemberFieldName()};"));
-                            saveBody.AddUnique(new TabSimpleSyntax(3, $"this.{specialResolver}.{fieldName} = new {specialResolver}().In(ref {fieldName});"));
-                            loadBody.AddUnique(new TabSimpleSyntax(3, $"this.{specialResolver}.{fieldName}.Out(ref {fieldName});"));
+
+                            inFunc.AddUnique(new TabSimpleSyntax(3, $"{linkedNode.Name.ToLower()}.SaveToJSONResolver(ref this);"));;
+                            saveBody.AddUnique(new TabSimpleSyntax(3, $"{jsonResolverName}.{fieldName} = new {specialResolver}().In(ref {fieldName});"));
+                            loadBody.AddUnique(new TabSimpleSyntax(3, $"{jsonResolverName}.{fieldName}.Out(ref {fieldName});"));
+
+                            outFunc.AddUnique(new TabSimpleSyntax(3, $"{linkedNode.Name.ToLower()}.LoadFromJSONResolver(ref this);"));
                         }
                         else
                         {
+                            fields.Add(new TabSimpleSyntax(2, $"[JsonProperty({CParse.Quote}{fieldName}{CParse.Quote})]"));
                             fields.Add(new TabSimpleSyntax(2, $"public {m.MemberDeclarationSyntax.GetMemberType()} {m.MemberDeclarationSyntax.GetMemberFieldName()};"));
-                            saveBody.AddUnique(new TabSimpleSyntax(3, $"{resolv}.{fieldName} = {fieldName};"));
-                            loadBody.AddUnique(new TabSimpleSyntax(3, $"{m.GatheredField.FieldName} = {Resolver.ToLower()}.{m.GatheredField.FieldName};"));
+
+                            inFunc.AddUnique(new TabSimpleSyntax(3, $"{linkedNode.Name.ToLower()}.SaveToJSONResolver(ref this);"));
+                            saveBody.AddUnique(new TabSimpleSyntax(3, $"{jsonResolverName.ToLower()}.{fieldName} = {fieldName};"));
+                            loadBody.AddUnique(new TabSimpleSyntax(3, $"{fieldName} = {jsonResolverName.ToLower()}.{fieldName};"));
+
+                            outFunc.AddUnique(new TabSimpleSyntax(3, $"{linkedNode.Name.ToLower()}.LoadFromJSONResolver(ref this);"));
                         }
                     }
                 }
             }
 
+            inFunc.Add(new TabSimpleSyntax(3, "return this;"));
             return tree;
         }
 

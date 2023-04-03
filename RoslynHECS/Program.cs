@@ -27,8 +27,8 @@ namespace RoslynHECS
         public static List<ClassDeclarationSyntax> classes;
         public static List<StructDeclarationSyntax> structs;
 
-        public static string ScriptsPath = @"D:\Develop\ZombieWar\Assets\";
-        public static string HECSGenerated = @"D:\Develop\ZombieWar\Assets\Scripts\HECSGenerated\";
+        public static string ScriptsPath = @"D:\UniverseClientCorp\Assets\";
+        public static string HECSGenerated = @"D:\UniverseClientCorp\Assets\Scripts\HECSGenerated\";
         //public static string ScriptsPath = @"E:\repos\Kefir\minilife-server\MinilifeServer\";
         //public static string HECSGenerated = @"E:\repos\Kefir\minilife-server\MinilifeServer\HECSGenerated\";
 
