@@ -766,6 +766,9 @@ namespace HECSFramework.Core.Generator
             if (!string.IsNullOrEmpty(namespaseNeeded))
                 usings.AddUnique(new UsingSyntax(namespaseNeeded));
 
+            tree.Add(new NameSpaceSyntax("HECSFramework.Serialize"));
+            tree.Add(new LeftScopeSyntax());
+
             tree.Add(new TabSimpleSyntax(1, "[JsonObject, Serializable]"));
             tree.Add(new TabSimpleSyntax(1, $"public partial struct {name + JSONResolver} : IJSONResolver<{name},{name + JSONResolver}>"));
             tree.Add(new LeftScopeSyntax(1));
@@ -781,6 +784,7 @@ namespace HECSFramework.Core.Generator
             tree.Add(outFunc);
             tree.Add(new RightScopeSyntax(2));
             tree.Add(new RightScopeSyntax(1));
+            tree.Add(new RightScopeSyntax());
             tree.Add(new ParagraphSyntax());
 
             //((c.Members.ToArray()[0] as FieldDeclarationSyntax).AttributeLists.ToArray()[0].Attributes.ToArray()[0] as AttributeSyntax).ArgumentList.Arguments.ToArray()[0].ToString()
